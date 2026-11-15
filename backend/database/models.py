@@ -226,3 +226,66 @@ class MatchResult(Base):
     explanation = Column(Text, default="")
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ApplicationDraft(Base):
+    """
+    Prepared Application Draft.
+    Stores tailored cover letter, custom answers, mapped profile form fields,
+    and any unanswered questions requiring user attention.
+    """
+    __tablename__ = "application_drafts"
+
+    id = Column(String(36), primary_key=True, index=True)  # UUID4
+    job_id = Column(String(36), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    resume_id = Column(String(36), nullable=True)
+
+    cover_letter = Column(Text, default="")
+    custom_answers = Column(JSON, default=dict)
+    form_field_values = Column(JSON, default=dict)
+    unanswered_questions = Column(JSON, default=list)
+
+    status = Column(String(50), default="drafted")  # drafted, pending_approval, approved, rejected, prepared_only
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ApprovalRequest(Base):
+    """
+    Pending Human Approval Request for application submission.
+    """
+    __tablename__ = "approval_requests"
+
+    id = Column(String(36), primary_key=True, index=True)  # UUID4
+    job_id = Column(String(36), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    draft_id = Column(String(36), ForeignKey("application_drafts.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    status = Column(String(50), default="pending")  # pending, approved, rejected, auto_approved
+    policy_applied = Column(String(50), default="manual_approval")  # manual_approval, pre_authorized, prepare_only
+    decision_notes = Column(Text, nullable=True)
+    decided_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Application(Base):
+    """
+    Tracked Job Application record.
+    Maintains complete submission status history.
+    """
+    __tablename__ = "applications"
+
+    id = Column(String(36), primary_key=True, index=True)  # UUID4
+    job_id = Column(String(36), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    draft_id = Column(String(36), ForeignKey("application_drafts.id", ondelete="SET NULL"), nullable=True)
+
+    status = Column(String(50), default="draft")  # draft, submitted, submission_failed, skipped
+    submission_method = Column(String(50), default="manual")  # manual, browser_automation, prepare_only
+    submission_result = Column(Text, nullable=True)
+    failure_reason = Column(Text, nullable=True)
+    applied_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+

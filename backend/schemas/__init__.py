@@ -29,6 +29,14 @@ from backend.schemas.matching import (
     MatchResponse,
     JobRankingItem,
 )
+from backend.schemas.application import (
+    ApplicationPrepareRequest,
+    ApplicationDraftResponse,
+    DraftUpdateRequest,
+    ApprovalDecisionRequest,
+    ApprovalRequestItem,
+    ApplicationTrackerItem,
+)
 
 __all__ = [
     "HealthCheckResponse",
@@ -56,4 +64,10 @@ __all__ = [
     "MatchCategoryScores",
     "MatchResponse",
     "JobRankingItem",
+    "ApplicationPrepareRequest",
+    "ApplicationDraftResponse",
+    "DraftUpdateRequest",
+    "ApprovalDecisionRequest",
+    "ApprovalRequestItem",
+    "ApplicationTrackerItem",
 ]
