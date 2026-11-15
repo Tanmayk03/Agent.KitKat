@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings,
   Sparkles,
@@ -11,6 +11,9 @@ import {
   Pause,
   Save,
   Check,
+  Smartphone,
+  Wifi,
+  ExternalLink,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -21,6 +24,11 @@ export default function SettingsPage({
   onSchedulerToggled,
   onEmergencyStop,
 }) {
+  const [networkInfo, setNetworkInfo] = useState(null);
+
+  useEffect(() => {
+    api.getNetworkInfo().then(setNetworkInfo).catch(console.warn);
+  }, []);
   const [prefs, setPrefs] = useState(
     profile?.application_preferences || {
       daily_search_time: '09:00',
@@ -253,6 +261,48 @@ export default function SettingsPage({
             <span>{schedulerStatus?.is_running ? 'Pause Scheduler' : 'Activate Scheduler'}</span>
           </button>
         </div>
+      </div>
+
+      {/* iPhone PWA & Remote Network Access Card */}
+      <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-6 space-y-4 shadow-xl">
+        <h2 className="text-base font-bold text-white flex items-center space-x-2">
+          <Smartphone className="w-4 h-4 text-amber-400" />
+          <span>iPhone PWA & Local Network Remote Access</span>
+        </h2>
+        <p className="text-xs text-slate-400">
+          Control Agent KitKat directly from your iPhone without installing third-party apps from the App Store.
+        </p>
+
+        {networkInfo ? (
+          <div className="space-y-4 pt-1">
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase font-mono block">Your iPhone Safari Access URL</span>
+                <span className="font-mono text-sm font-bold text-amber-400">{networkInfo.mobile_access_url}</span>
+              </div>
+              <a
+                href={networkInfo.mobile_access_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center space-x-1.5 self-start sm:self-auto"
+              >
+                <span>Open URL</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+
+            <div className="space-y-2 text-xs text-slate-300">
+              <span className="font-semibold text-slate-200 block">How to Install on iPhone:</span>
+              <ul className="space-y-1.5 list-disc list-inside text-slate-400">
+                {networkInfo.setup_instructions?.map((inst, i) => (
+                  <li key={i}>{inst}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-500">Detecting local network IP...</div>
+        )}
       </div>
 
       {/* Save Settings Bar */}

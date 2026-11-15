@@ -21,6 +21,7 @@ from backend.routers.application_router import router as application_router
 from backend.routers.browser_router import router as browser_router
 from backend.routers.discovery_router import router as discovery_router, scheduler_router
 from backend.routers.reporting_router import router as reporting_router
+from backend.routers.network_router import router as network_router
 from backend.schemas.health import HealthCheckResponse
 from backend.schemas.ai import AITestRequest, AITestResponse
 from backend.services.ollama_service import ollama_service
@@ -108,6 +109,7 @@ app.include_router(browser_router)
 app.include_router(discovery_router)
 app.include_router(scheduler_router)
 app.include_router(reporting_router)
+app.include_router(network_router)
 
 
 @app.get("/", tags=["General"])

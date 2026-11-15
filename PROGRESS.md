@@ -10,8 +10,8 @@
 | **Phase 6** | Playwright Browser Automation & Site Adapters | ✅ COMPLETED | 2026-11-15 |
 | **Phase 7** | Daily Autonomous Job Hunting & Discovery Scheduler | ✅ COMPLETED | 2026-11-15 |
 | **Phase 8** | React + Tailwind Dashboard | ✅ COMPLETED | 2026-11-15 |
-| **Phase 9** | iPhone PWA & Local Network Remote Access | ⏳ IN PROGRESS | - |
-| **Phase 10**| End-to-End Testing & Hardening | ⏳ PENDING | - |
+| **Phase 9** | iPhone PWA & Local Network Remote Access | ✅ COMPLETED | 2026-11-15 |
+| **Phase 10**| End-to-End Testing & Hardening | ⏳ IN PROGRESS | - |
 
 ---
 
@@ -196,3 +196,16 @@
 - **Production Bundle Verification:**
   - Production build compiled successfully (`npm run build` -> `dist/index.html`, `dist/assets/*.js`, `dist/assets/*.css` in 1.46s).
 - **Tests Passed:** `tests/test_phase8.py` passed 100% green.
+
+---
+
+### Phase 9 Verification Summary
+- **iPhone PWA (Progressive Web Application):**
+  - Web App Manifest (`frontend/public/manifest.json`): Standalone display mode, portrait orientation, theme color `#0f172a`, background color `#020617`, multi-size maskable icons.
+  - Apple Mobile Tags (`frontend/index.html`): `apple-mobile-web-app-capable=yes`, `apple-mobile-web-app-status-bar-style=black-translucent`, `apple-touch-icon`, `viewport-fit=cover`.
+  - Service Worker (`frontend/public/sw.js`): Offline app shell caching, dynamic cache invalidation, and fast asset delivery.
+  - iOS Touch & Safe Area Insets: Configured in `frontend/src/index.css` (`env(safe-area-inset-top)`, `env(safe-area-inset-bottom)`) for notch and iPhone home indicator support.
+- **Local Network Remote Access Engine:**
+  - Endpoint `GET /api/network/info` discovers primary LAN IP (detected: `172.20.10.4`), generates Safari URL (`http://172.20.10.4:5173`), and provides iPhone "Add to Home Screen" instructions.
+  - Settings page renders an interactive iPhone remote access card with one-click URL and step-by-step setup guide.
+- **Tests Passed:** `tests/test_phase9.py` passed 100% green.

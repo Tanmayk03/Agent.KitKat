@@ -6,6 +6,7 @@ from backend.routers.application_router import router as application_router
 from backend.routers.browser_router import router as browser_router
 from backend.routers.discovery_router import router as discovery_router, scheduler_router
 from backend.routers.reporting_router import router as reporting_router
+from backend.routers.network_router import router as network_router
 
 __all__ = [
     "profile_router",
@@ -17,4 +18,5 @@ __all__ = [
     "discovery_router",
     "scheduler_router",
     "reporting_router",
+    "network_router",
 ]

@@ -242,4 +242,10 @@ export const api = {
     const res = await fetch(`${BASE_URL}/api/reports/history`);
     return handleResponse(res);
   },
+
+  // Mobile & Network Info
+  async getNetworkInfo() {
+    const res = await fetch(`${BASE_URL}/api/network/info`);
+    return handleResponse(res);
+  },
 };
