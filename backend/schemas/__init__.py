@@ -43,6 +43,14 @@ from backend.schemas.browser import (
     EmergencyStopResponse,
     BrowserStatusResponse,
 )
+from backend.schemas.discovery import (
+    DiscoveryTriggerRequest,
+    DiscoveredJobItem,
+    DiscoveryRunResult,
+    SourceStatusItem,
+    SchedulerStatusResponse,
+)
+from backend.schemas.reporting import DailyReportResponse
 
 __all__ = [
     "HealthCheckResponse",
@@ -80,4 +88,10 @@ __all__ = [
     "BrowserRunResult",
     "EmergencyStopResponse",
     "BrowserStatusResponse",
+    "DiscoveryTriggerRequest",
+    "DiscoveredJobItem",
+    "DiscoveryRunResult",
+    "SourceStatusItem",
+    "SchedulerStatusResponse",
+    "DailyReportResponse",
 ]

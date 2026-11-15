@@ -295,3 +295,32 @@ class Application(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+class DailyReport(Base):
+    """
+    Persisted Daily Activity and Career Intelligence Report.
+    Records discovered jobs, eligibility breakdowns, application statuses,
+    and formatted executive summaries based purely on real database data.
+    """
+    __tablename__ = "daily_reports"
+
+    id = Column(String(36), primary_key=True, index=True)  # UUID4
+    report_date = Column(String(10), nullable=False, index=True)  # YYYY-MM-DD
+
+    total_discovered = Column(Integer, default=0)
+    new_found = Column(Integer, default=0)
+    eligible_count = Column(Integer, default=0)
+    rejected_count = Column(Integer, default=0)
+    unknown_count = Column(Integer, default=0)
+    shortlisted_count = Column(Integer, default=0)
+    prepared_count = Column(Integer, default=0)
+    submitted_count = Column(Integer, default=0)
+    pending_approvals_count = Column(Integer, default=0)
+    failed_count = Column(Integer, default=0)
+
+    summary_markdown = Column(Text, default="")
+    details_json = Column(JSON, default=dict)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+

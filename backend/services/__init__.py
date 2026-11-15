@@ -5,6 +5,8 @@ from backend.services.job_service import JobService, job_service
 from backend.services.matching_service import MatchingService, matching_service
 from backend.services.application_service import ApplicationService, application_service
 from backend.services.browser_service import BrowserService
+from backend.services.discovery_service import DiscoveryService
+from backend.services.reporting_service import ReportingService
 
 __all__ = [
     "OllamaService",
@@ -20,4 +22,6 @@ __all__ = [
     "ApplicationService",
     "application_service",
     "BrowserService",
+    "DiscoveryService",
+    "ReportingService",
 ]

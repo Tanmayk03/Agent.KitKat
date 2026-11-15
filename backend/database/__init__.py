@@ -8,6 +8,7 @@ from backend.database.models import (
     ApplicationDraft,
     ApprovalRequest,
     Application,
+    DailyReport,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "ApplicationDraft",
     "ApprovalRequest",
     "Application",
+    "DailyReport",
 ]
