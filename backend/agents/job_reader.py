@@ -97,6 +97,18 @@ class JobReaderAgent:
         else:
             features["required_degree"] = None
 
+        # 6. Experience Level (Senior vs Intern / Fresher)
+        if any(re.search(pat, lower) for pat in [r"\bsenior\b", r"\bsr\.?\b", r"\bstaff\b", r"\blead\b", r"\bprincipal\b", r"\barchitect\b", r"\bdirector\b", r"\bhead\b", r"\bmanager\b", r"\btier\s*(?:ii|iii|iv|2|3|4)\b"]):
+            features["experience_required"] = "Senior / Experienced"
+        elif any(re.search(pat, lower) for pat in [r"\bintern\b", r"\binternship\b", r"\bfresher\b", r"\bgraduate\b", r"\bco-?op\b", r"\bjunior\b", r"\btrainee\b", r"\bentry\s*-?level\b", r"\bworking\s*student\b", r"\bwerkstudent\b"]):
+            features["experience_required"] = "Fresher / Intern"
+        else:
+            exp_match = re.search(r"(\d+)\s*\+?\s*(?:-\s*\d+\s*)?(?:years?|yrs?)\s*(?:of\s*)?exp", lower[:1200])
+            if exp_match:
+                features["experience_required"] = f"{exp_match.group(0)}"
+            else:
+                features["experience_required"] = "Fresher / Intern"
+
         return features
 
     @classmethod

@@ -36,22 +36,25 @@ class DiscoveryService:
         """List all configured discovery sources and their availability."""
         status_items = []
         for src in DISCOVERY_SOURCES:
-            if src.name == "adzuna":
+            if src.name == "simplify_internships":
+                is_conf = True
+                desc = "Live Verified Tech Internships Feed (Official PittCSC / Simplify dataset - 1400+ roles)."
+            elif src.name == "adzuna":
                 import os
                 is_conf = bool(os.getenv("ADZUNA_APP_ID") and os.getenv("ADZUNA_APP_KEY"))
                 desc = "Adzuna Job Search API. Requires free APP_ID & APP_KEY."
             elif src.name == "arbeitnow":
                 is_conf = True
-                desc = "Arbeitnow Real-Time Public Tech Job Board (Worldwide / Remote)."
+                desc = "Arbeitnow Real-Time Tech Board (Filtered for Working Student / Intern / Junior)."
             elif src.name == "weworkremotely":
                 is_conf = True
-                desc = "WeWorkRemotely Live RSS Feed (Remote Programming Jobs)."
+                desc = "WeWorkRemotely RSS Feed (Filtered for Entry-Level Programming Roles)."
             elif src.name == "remotive":
                 is_conf = True
-                desc = "Remotive Free Public Developer & Engineering API (Worldwide / Remote)."
+                desc = "Remotive Free Developer API (Filtered for Junior / Intern Roles)."
             elif src.name == "jobicy":
                 is_conf = True
-                desc = "Jobicy Free Public Developer API (Remote tech jobs)."
+                desc = "Jobicy Developer API (Filtered for Entry-Level & Intern tech jobs)."
             else:
                 is_conf = True
                 desc = "Custom real job source."
@@ -98,6 +101,19 @@ class DiscoveryService:
                 discovered_raw.extend(src_results)
             except Exception as e:
                 logger.error("Error fetching from source %s: %s", source.name, e)
+
+        # Geographic Priority: India roles first (Priority 0), then International Remote (Priority 1)
+        import re
+        from backend.tools.job_discovery_sources import INDIA_LOCATION_PATTERNS
+
+        def geo_priority_key(item: Dict[str, Any]) -> int:
+            loc = (item.get("location") or "").lower()
+            raw = (item.get("raw_text") or "").lower()[:400]
+            if any(re.search(pat, loc) for pat in INDIA_LOCATION_PATTERNS) or any(re.search(pat, raw) for pat in INDIA_LOCATION_PATTERNS):
+                return 0  # India Domestic (Top Priority)
+            return 1  # International Remote
+
+        discovered_raw.sort(key=geo_priority_key)
 
         total_discovered = len(discovered_raw)
         new_saved = 0
@@ -149,7 +165,7 @@ class DiscoveryService:
             job_obj.graduation_eligibility = extracted.get("graduation_eligibility", [])
             job_obj.minimum_cgpa = extracted.get("minimum_cgpa")
             job_obj.required_skills = extracted.get("required_skills", [])
-            job_obj.experience_required = "Fresher / Intern"
+            job_obj.experience_required = extracted.get("experience_required", "Fresher / Intern")
 
             db.add(job_obj)
             await db.commit()

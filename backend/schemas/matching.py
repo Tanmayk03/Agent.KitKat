@@ -21,6 +21,7 @@ class EligibilityResponse(BaseModel):
     cgpa: RequirementCheck
     location: RequirementCheck
     work_mode: RequirementCheck
+    experience_level: Optional[RequirementCheck] = None
     rejection_reasons: List[str] = Field(default_factory=list)
     unverified_requirements: List[str] = Field(default_factory=list)
 

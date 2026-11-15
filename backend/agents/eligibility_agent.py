@@ -9,6 +9,7 @@ Strict Rules:
 - Identifies requirements still needing verification.
 """
 
+import re
 import logging
 from typing import Dict, Any, List, Tuple
 
@@ -16,6 +17,29 @@ from backend.database.models import Job, UserProfile
 from backend.schemas.matching import RequirementCheck, EligibilityResponse
 
 logger = logging.getLogger("agent_kitkat.eligibility_agent")
+
+SENIOR_ROLE_KEYWORDS = [
+    r"\bsenior\b", r"\bsr\.?\b", r"\bstaff\b", r"\blead\b", r"\bprincipal\b",
+    r"\barchitect\b", r"\bdirector\b", r"\bhead\b", r"\bvp\b", r"\bvice president\b",
+    r"\bmanager\b", r"\bchief\b", r"\bexecutive\b", r"\btier\s*(?:ii|iii|iv|2|3|4)\b"
+]
+
+INTERN_FRESHER_KEYWORDS = [
+    r"\bintern\b", r"\binternship\b", r"\bfresher\b", r"\bjunior\b", r"\bjr\.?\b",
+    r"\bentry\s*-?level\b", r"\bgraduate\b", r"\bco-?op\b", r"\btrainee\b",
+    r"\bapprentice\b", r"\bworking\s*student\b", r"\bwerkstudent\b", r"\bstudent\b"
+]
+
+INDIA_LOCATION_PATTERNS = [
+    r"\bindia\b", r"\bbangalore\b", r"\bbengaluru\b", r"\bdelhi\b",
+    r"\bnoida\b", r"\bgurgaon\b", r"\bgurugram\b", r"\bhyderabad\b",
+    r"\bpune\b", r"\bmumbai\b", r"\bchennai\b", r"\bkolkata\b", r"\bjaipur\b",
+    r"\bahmedabad\b", r"\bkarnataka\b", r"\bmaharashtra\b", r"\bharyana\b"
+]
+
+REMOTE_LOCATION_PATTERNS = [
+    r"\bremote\b", r"\bworldwide\b", r"\banywhere\b", r"\bwork from home\b", r"\bwfh\b"
+]
 
 
 class EligibilityAgent:
@@ -138,45 +162,100 @@ class EligibilityAgent:
             )
 
         # ---------------------------------------------------------
-        # Check 5: Location
+        # Check 5: Location & Geographic Eligibility
+        # User constraint: Priority to India jobs; foreign jobs ONLY if Remote.
+        # International onsite/hybrid roles must be rejected.
         # ---------------------------------------------------------
         job_loc_lower = (job.location or "").lower()
-        if (
+        job_mode_lower = (job.work_mode or "Unknown").lower()
+        job_raw_lower = (job.raw_text or "").lower()
+
+        is_in_india = (
+            any(re.search(pat, job_loc_lower) for pat in INDIA_LOCATION_PATTERNS)
+            or any(re.search(pat, job_raw_lower[:500]) for pat in INDIA_LOCATION_PATTERNS)
+        )
+        is_remote = (
             job_mode_lower == "remote"
-            or "remote" in job_loc_lower
-            or "worldwide" in job_loc_lower
-            or "anywhere" in job_loc_lower
-            or "remote" in (job.work_mode or "").lower()
-        ):
+            or any(re.search(pat, job_loc_lower) for pat in REMOTE_LOCATION_PATTERNS)
+            or any(re.search(pat, (job.work_mode or "").lower()) for pat in REMOTE_LOCATION_PATTERNS)
+            or "remote" in job_raw_lower[:300]
+        )
+
+        if is_in_india:
             location_check = RequirementCheck(
                 status="PASS",
-                details=f"Remote work mode supported ({job.location or 'Remote'})."
+                details=f"Job location '{job.location}' is within India (Top Candidate Priority)."
             )
-        elif any(pref in job_loc_lower for pref in preferred_locations):
+        elif is_remote:
             location_check = RequirementCheck(
                 status="PASS",
-                details=f"Job location '{job.location}' matches candidate preferred locations."
-            )
-        elif "india" in job_loc_lower:
-            location_check = RequirementCheck(
-                status="PASS",
-                details=f"Job location '{job.location}' is within India."
-            )
-        elif not job.location or job.location == "Not Specified":
-            location_check = RequirementCheck(
-                status="PASS",
-                details="Flexible / unconstrained location."
+                details=f"International Remote position supported for India-based candidate ({job.location})."
             )
         else:
+            # Foreign location requiring onsite or hybrid presence
             location_check = RequirementCheck(
-                status="PASS" if "remote" in preferred_locations else "UNKNOWN",
-                details=f"Job location: {job.location}."
+                status="FAIL",
+                details=f"Job requires onsite/hybrid presence abroad ('{job.location}'). International roles must be 100% remote for India-based candidate."
+            )
+            rejection_reasons.append(location_check.details)
+
+        # ---------------------------------------------------------
+        # Check 6: Seniority & Experience Level (Intern / Fresher Gate)
+        # ---------------------------------------------------------
+        job_title_lower = (job.title or "").lower()
+        job_text_lower = (job.raw_text or job.description or "").lower()
+
+        # Hard rejection for Senior, Lead, Staff, Principal, Architect, Director, Manager roles
+        senior_match = None
+        for pattern in SENIOR_ROLE_KEYWORDS:
+            m = re.search(pattern, job_title_lower)
+            if m:
+                senior_match = m.group(0)
+                break
+
+        # Also check for high experience requirements (e.g. 3+ years, 5+ years)
+        high_exp_match = None
+        exp_num_match = re.search(r"(\d+)\s*\+?\s*(?:-\s*\d+\s*)?(?:years?|yrs?)\s*(?:of\s*)?exp", job_text_lower[:1200])
+        if exp_num_match:
+            try:
+                years = int(exp_num_match.group(1))
+                if years >= 3:
+                    high_exp_match = f"{years}+ years"
+            except ValueError:
+                pass
+
+        if senior_match:
+            experience_check = RequirementCheck(
+                status="FAIL",
+                details=f"Job title indicates '{senior_match.strip()}' (Senior/Lead/Staff level). Candidate is a student seeking intern/fresher roles."
+            )
+            rejection_reasons.append(experience_check.details)
+        elif high_exp_match:
+            experience_check = RequirementCheck(
+                status="FAIL",
+                details=f"Job requires {high_exp_match} of experience. Candidate is a student (Batch {candidate_grad_year}) seeking intern/fresher roles."
+            )
+            rejection_reasons.append(experience_check.details)
+        elif any(re.search(pat, job_title_lower) for pat in INTERN_FRESHER_KEYWORDS):
+            experience_check = RequirementCheck(
+                status="PASS",
+                details="Role is specifically structured for interns, freshers, or student co-ops."
+            )
+        elif any(k in job_text_lower[:500] for k in ["internship", "intern role", "summer intern", "working student", "werkstudent", "entry level", "entry-level", "fresher"]):
+            experience_check = RequirementCheck(
+                status="PASS",
+                details="Posting explicitly targets student interns or entry-level candidates."
+            )
+        else:
+            experience_check = RequirementCheck(
+                status="PASS",
+                details="Entry/intermediate technical role without senior-level requirement."
             )
 
         # ---------------------------------------------------------
         # Overall Status Determination
         # ---------------------------------------------------------
-        all_checks = [grad_check, cgpa_check, degree_check, work_mode_check, location_check]
+        all_checks = [grad_check, cgpa_check, degree_check, work_mode_check, location_check, experience_check]
         if any(c.status == "FAIL" for c in all_checks):
             overall_status = "FAIL"
         elif any(c.status == "UNKNOWN" for c in all_checks):
@@ -192,6 +271,7 @@ class EligibilityAgent:
             cgpa=cgpa_check,
             location=location_check,
             work_mode=work_mode_check,
+            experience_level=experience_check,
             rejection_reasons=rejection_reasons,
             unverified_requirements=unverified_requirements
         )

@@ -14,6 +14,7 @@ Strict Rule:
 Do not allow a high match score to override a mandatory eligibility failure.
 """
 
+import re
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -23,7 +24,13 @@ from backend.schemas.matching import (
     MatchCategoryScores,
     MatchResponse
 )
-from backend.agents.eligibility_agent import EligibilityAgent
+from backend.agents.eligibility_agent import (
+    EligibilityAgent,
+    SENIOR_ROLE_KEYWORDS,
+    INTERN_FRESHER_KEYWORDS,
+    INDIA_LOCATION_PATTERNS,
+    REMOTE_LOCATION_PATTERNS
+)
 
 logger = logging.getLogger("agent_kitkat.matching_agent")
 
@@ -112,28 +119,50 @@ class MatchingAgent:
         job_title_lower = (job.title or "").lower()
         preferred_roles = [r.lower() for r in (profile.preferred_roles or [])]
 
-        if any(pref in job_title_lower for pref in preferred_roles):
+        is_senior = any(re.search(pat, job_title_lower) for pat in SENIOR_ROLE_KEYWORDS)
+        is_intern_or_fresher = any(re.search(pat, job_title_lower) for pat in INTERN_FRESHER_KEYWORDS)
+
+        if is_senior:
+            # Senior/Lead/Staff role completely mismatches candidate intern profile
+            role_score = 0.0
+        elif any(pref in job_title_lower for pref in preferred_roles):
             role_score = 15.0
-        elif "intern" in job_title_lower and any(k in job_title_lower for k in ["software", "developer", "engineer", "frontend", "backend", "full stack", "ai", "ml", "data"]):
-            role_score = 14.0
-        elif "intern" in job_title_lower:
-            role_score = 10.0
+        elif is_intern_or_fresher and any(k in job_title_lower for k in ["software", "developer", "engineer", "frontend", "backend", "full stack", "ai", "ml", "data"]):
+            role_score = 15.0
+        elif is_intern_or_fresher:
+            role_score = 12.0
         elif any(k in job_title_lower for k in ["software", "developer", "engineer"]):
-            role_score = 9.0
+            # Generic engineering role without intern specification
+            role_score = 5.0
         else:
-            role_score = 4.0
+            role_score = 2.0
 
         # -------------------------------------------------------------
         # Category 5: Location & Work Mode (Weight: 10%)
+        # User constraint: Priority to India jobs; foreign jobs ONLY if Remote.
         # -------------------------------------------------------------
-        if eligibility.work_mode.status == "PASS" and eligibility.location.status == "PASS":
-            loc_score = 10.0
-        elif eligibility.location.status == "PASS":
-            loc_score = 8.0
-        elif eligibility.work_mode.status == "FAIL" or eligibility.location.status == "FAIL":
+        job_loc_lower = (job.location or "").lower()
+        job_mode_lower = (job.work_mode or "Unknown").lower()
+        is_in_india = (
+            any(re.search(pat, job_loc_lower) for pat in INDIA_LOCATION_PATTERNS)
+            or any(re.search(pat, (job.raw_text or "").lower()[:500]) for pat in INDIA_LOCATION_PATTERNS)
+        )
+        is_remote = (
+            job_mode_lower == "remote"
+            or any(re.search(pat, job_loc_lower) for pat in REMOTE_LOCATION_PATTERNS)
+            or any(re.search(pat, (job.work_mode or "").lower()) for pat in REMOTE_LOCATION_PATTERNS)
+        )
+
+        if eligibility.location.status == "FAIL":
             loc_score = 0.0
+        elif is_in_india:
+            # Top priority score (10.0/10) for domestic India opportunities
+            loc_score = 10.0
+        elif is_remote:
+            # High priority score (9.0/10) for international remote positions
+            loc_score = 9.0
         else:
-            loc_score = 6.0
+            loc_score = 0.0
 
         # -------------------------------------------------------------
         # Overall Weighted Score Calculation
@@ -153,17 +182,20 @@ class MatchingAgent:
         # -------------------------------------------------------------
         # Recommendation Logic (Strict Override Rules)
         # -------------------------------------------------------------
-        if eligibility.overall_status == "FAIL":
+        if eligibility.overall_status == "FAIL" or is_senior:
             recommendation = "INELIGIBLE"
         elif eligibility.overall_status == "UNKNOWN":
-            if overall_score >= 70.0:
+            if overall_score >= 70.0 and is_intern_or_fresher:
                 recommendation = "CONSIDER_WITH_VERIFICATION"
             else:
                 recommendation = "NEEDS_VERIFICATION"
         else:
-            if overall_score >= 80.0:
+            # India roles given strong recommendation boost when qualified
+            if is_in_india and overall_score >= 75.0 and is_intern_or_fresher:
                 recommendation = "STRONGLY_RECOMMENDED"
-            elif overall_score >= 65.0:
+            elif overall_score >= 80.0 and is_intern_or_fresher:
+                recommendation = "STRONGLY_RECOMMENDED"
+            elif overall_score >= 65.0 and is_intern_or_fresher:
                 recommendation = "RECOMMENDED"
             elif overall_score >= 50.0:
                 recommendation = "CONSIDER"
