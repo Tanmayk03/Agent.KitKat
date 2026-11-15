@@ -58,12 +58,11 @@ class EligibilityAgent:
                 )
                 rejection_reasons.append(grad_check.details)
         else:
-            # Job didn't state specific year -> Unknown information must never be treated as a pass
+            # Job does not restrict graduation batch -> Open to candidate
             grad_check = RequirementCheck(
-                status="UNKNOWN",
-                details="Job description does not specify eligible graduation batches. Needs recruiter verification."
+                status="PASS",
+                details=f"No restrictive graduation batch specified. Open to {candidate_grad_year} candidates."
             )
-            unverified_requirements.append(grad_check.details)
 
         # ---------------------------------------------------------
         # Check 2: Minimum CGPA Cutoff
@@ -121,7 +120,7 @@ class EligibilityAgent:
         # Check 4: Work Mode
         # ---------------------------------------------------------
         job_mode_lower = (job.work_mode or "Unknown").lower()
-        if job_mode_lower == "remote" or "remote" in (job.location or "").lower():
+        if job_mode_lower == "remote" or "remote" in (job.location or "").lower() or "remote" in (job.raw_text or "").lower():
             work_mode_check = RequirementCheck(
                 status="PASS",
                 details="Remote work mode matches candidate preferences."
@@ -132,26 +131,26 @@ class EligibilityAgent:
                 details=f"Job requires onsite presence ({job.location}), but candidate preferred work mode is Remote only."
             )
             rejection_reasons.append(work_mode_check.details)
-        elif job_mode_lower in ["hybrid", "onsite", "any"]:
-            work_mode_check = RequirementCheck(
-                status="PASS",
-                details=f"Job work mode ({job.work_mode}) is acceptable."
-            )
         else:
             work_mode_check = RequirementCheck(
-                status="UNKNOWN",
-                details="Work mode not explicitly stated in job posting."
+                status="PASS",
+                details=f"Job work mode ({job.work_mode or 'Flexible'}) is acceptable."
             )
-            unverified_requirements.append(work_mode_check.details)
 
         # ---------------------------------------------------------
         # Check 5: Location
         # ---------------------------------------------------------
         job_loc_lower = (job.location or "").lower()
-        if job_mode_lower == "remote" or "remote" in job_loc_lower:
+        if (
+            job_mode_lower == "remote"
+            or "remote" in job_loc_lower
+            or "worldwide" in job_loc_lower
+            or "anywhere" in job_loc_lower
+            or "remote" in (job.work_mode or "").lower()
+        ):
             location_check = RequirementCheck(
                 status="PASS",
-                details="Remote location is supported."
+                details=f"Remote work mode supported ({job.location or 'Remote'})."
             )
         elif any(pref in job_loc_lower for pref in preferred_locations):
             location_check = RequirementCheck(
@@ -165,16 +164,14 @@ class EligibilityAgent:
             )
         elif not job.location or job.location == "Not Specified":
             location_check = RequirementCheck(
-                status="UNKNOWN",
-                details="Job location was not specified in the posting."
+                status="PASS",
+                details="Flexible / unconstrained location."
             )
-            unverified_requirements.append(location_check.details)
         else:
             location_check = RequirementCheck(
-                status="UNKNOWN",
-                details=f"Job location '{job.location}' is outside primary preferred cities. Requires verification."
+                status="PASS" if "remote" in preferred_locations else "UNKNOWN",
+                details=f"Job location: {job.location}."
             )
-            unverified_requirements.append(location_check.details)
 
         # ---------------------------------------------------------
         # Overall Status Determination

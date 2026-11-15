@@ -39,19 +39,22 @@ class DiscoveryService:
             if src.name == "adzuna":
                 import os
                 is_conf = bool(os.getenv("ADZUNA_APP_ID") and os.getenv("ADZUNA_APP_KEY"))
-                desc = "Adzuna Job Search API (India). Requires free APP_ID & APP_KEY."
+                desc = "Adzuna Job Search API. Requires free APP_ID & APP_KEY."
+            elif src.name == "arbeitnow":
+                is_conf = True
+                desc = "Arbeitnow Real-Time Public Tech Job Board (Worldwide / Remote)."
+            elif src.name == "weworkremotely":
+                is_conf = True
+                desc = "WeWorkRemotely Live RSS Feed (Remote Programming Jobs)."
             elif src.name == "remotive":
                 is_conf = True
-                desc = "Remotive Free Public Developer & Intern API (Worldwide / Remote)."
+                desc = "Remotive Free Public Developer & Engineering API (Worldwide / Remote)."
             elif src.name == "jobicy":
                 is_conf = True
                 desc = "Jobicy Free Public Developer API (Remote tech jobs)."
-            elif src.name == "curated_feed":
-                is_conf = True
-                desc = "Curated Indian Startup & Tech Internships feed."
             else:
                 is_conf = True
-                desc = "Custom job source."
+                desc = "Custom real job source."
 
             status_items.append(SourceStatusItem(
                 source_name=src.name,

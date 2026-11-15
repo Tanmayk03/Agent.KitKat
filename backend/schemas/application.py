@@ -45,21 +45,32 @@ class ApprovalRequestItem(BaseModel):
     draft_id: str
     company: str
     role: str
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    job_url: Optional[str] = None
     match_score: float
     eligibility_status: str
     policy_applied: str
     status: str
     created_at: datetime
+    draft: Optional[ApplicationDraftResponse] = None
 
 
 class ApplicationTrackerItem(BaseModel):
     id: str
+    application_id: Optional[str] = None
     job_id: str
+    draft_id: Optional[str] = None
     company: str
     role: str
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    job_url: Optional[str] = None
     status: str
     match_score: Optional[float] = None
     submission_method: str
     submission_result: Optional[str] = None
+    failure_reason: Optional[str] = None
     applied_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     created_at: datetime

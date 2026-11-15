@@ -280,6 +280,20 @@ class ApplicationService:
 
         items = []
         for appr, job, draft, mr, el in rows:
+            draft_resp = ApplicationDraftResponse(
+                id=draft.id,
+                job_id=job.id,
+                company=job.company,
+                role=job.title,
+                resume_id=draft.resume_id,
+                cover_letter=draft.cover_letter,
+                custom_answers=draft.custom_answers or {},
+                form_field_values=draft.form_field_values or {},
+                unanswered_questions=draft.unanswered_questions or [],
+                status=draft.status,
+                policy_applied=appr.policy_applied,
+                created_at=draft.created_at
+            )
             items.append(
                 ApprovalRequestItem(
                     id=appr.id,
@@ -287,11 +301,15 @@ class ApplicationService:
                     draft_id=draft.id,
                     company=job.company,
                     role=job.title,
+                    company_name=job.company,
+                    job_title=job.title,
+                    job_url=job.url,
                     match_score=mr.overall_score if mr else 0.0,
                     eligibility_status=el.overall_status if el else "UNKNOWN",
                     policy_applied=appr.policy_applied,
                     status=appr.status,
-                    created_at=appr.created_at
+                    created_at=appr.created_at,
+                    draft=draft_resp
                 )
             )
 
@@ -377,14 +395,21 @@ class ApplicationService:
             items.append(
                 ApplicationTrackerItem(
                     id=app_rec.id,
+                    application_id=app_rec.id,
                     job_id=job.id,
+                    draft_id=app_rec.draft_id,
                     company=job.company,
                     role=job.title,
+                    company_name=job.company,
+                    job_title=job.title,
+                    job_url=job.url,
                     status=app_rec.status,
                     match_score=mr.overall_score if mr else None,
                     submission_method=app_rec.submission_method,
                     submission_result=app_rec.submission_result,
+                    failure_reason=app_rec.failure_reason,
                     applied_at=app_rec.applied_at,
+                    updated_at=getattr(app_rec, "updated_at", app_rec.created_at),
                     created_at=app_rec.created_at
                 )
             )

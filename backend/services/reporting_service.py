@@ -77,13 +77,13 @@ class ReportingService:
         failed_count = sum(1 for a in apps if a.status in ["submission_failed", "failed"])
 
         # 2. Build Formatted Markdown Summary
-        summary_md = f"""# 🍫 Agent KitKat - Daily Activity Report
+        summary_md = f"""# Agent KitKat - Daily Activity Report
 **Report Date:** {today_str}
 **Generated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC
 
 ---
 
-### 📊 Executive Summary
+### Executive Summary
 | Metric | Value |
 |---|---:|
 | **Total Jobs Discovered** | **{total_discovered}** |
@@ -99,7 +99,7 @@ class ReportingService:
 
 ---
 
-### 🎯 Key Insights
+### Key Insights
 - **Pipeline Health:** {eligible_count} out of {total_discovered} opportunities meet 100% of candidate profile qualifications.
 - **Action Required:** {pending_approvals_count} application(s) awaiting your manual approval before submission.
 - **Automation Status:** {submitted_count} application(s) successfully verified and delivered to hiring platforms.
