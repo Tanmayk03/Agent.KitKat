@@ -245,7 +245,10 @@ class ApplicationDraft(Base):
     form_field_values = Column(JSON, default=dict)
     unanswered_questions = Column(JSON, default=list)
 
-    status = Column(String(50), default="drafted")  # drafted, pending_approval, approved, rejected, prepared_only
+    pre_submit_screenshot = Column(String(500), nullable=True)
+    post_submit_screenshot = Column(String(500), nullable=True)
+
+    status = Column(String(50), default="drafted")  # drafted, pending_approval, approved, rejected, prepared_only, filling, submitted, paused_captcha, paused_login, paused_unknown_field, halted_emergency
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -280,10 +283,13 @@ class Application(Base):
     job_id = Column(String(36), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
     draft_id = Column(String(36), ForeignKey("application_drafts.id", ondelete="SET NULL"), nullable=True)
 
-    status = Column(String(50), default="draft")  # draft, submitted, submission_failed, skipped
+    status = Column(String(50), default="draft")  # draft, submitted, submission_failed, skipped, filling, paused_captcha, paused_login, paused_unknown_field, halted_emergency
     submission_method = Column(String(50), default="manual")  # manual, browser_automation, prepare_only
     submission_result = Column(Text, nullable=True)
     failure_reason = Column(Text, nullable=True)
+    pre_submit_screenshot = Column(String(500), nullable=True)
+    post_submit_screenshot = Column(String(500), nullable=True)
+    browser_logs = Column(JSON, default=list)
     applied_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)

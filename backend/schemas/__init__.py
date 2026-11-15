@@ -37,6 +37,12 @@ from backend.schemas.application import (
     ApprovalRequestItem,
     ApplicationTrackerItem,
 )
+from backend.schemas.browser import (
+    BrowserRunRequest,
+    BrowserRunResult,
+    EmergencyStopResponse,
+    BrowserStatusResponse,
+)
 
 __all__ = [
     "HealthCheckResponse",
@@ -70,4 +76,8 @@ __all__ = [
     "ApprovalDecisionRequest",
     "ApprovalRequestItem",
     "ApplicationTrackerItem",
+    "BrowserRunRequest",
+    "BrowserRunResult",
+    "EmergencyStopResponse",
+    "BrowserStatusResponse",
 ]

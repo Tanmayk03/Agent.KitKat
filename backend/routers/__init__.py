@@ -3,6 +3,7 @@ from backend.routers.resume_router import router as resume_router
 from backend.routers.job_router import router as job_router
 from backend.routers.matching_router import router as matching_router
 from backend.routers.application_router import router as application_router
+from backend.routers.browser_router import router as browser_router
 
 __all__ = [
     "profile_router",
@@ -10,4 +11,5 @@ __all__ = [
     "job_router",
     "matching_router",
     "application_router",
+    "browser_router",
 ]

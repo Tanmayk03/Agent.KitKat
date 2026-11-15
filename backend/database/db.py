@@ -4,6 +4,7 @@ Using Async SQLAlchemy with SQLite (aiosqlite).
 """
 
 from typing import AsyncGenerator
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 
@@ -41,9 +42,30 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Initialize all database tables defined in models."""
+    """Initialize all database tables defined in models and ensure storage directories exist."""
+    import os
+    os.makedirs(settings.STORAGE_DIR, exist_ok=True)
+    os.makedirs(settings.RESUMES_DIR, exist_ok=True)
+    os.makedirs(settings.SCREENSHOTS_DIR, exist_ok=True)
+    os.makedirs(settings.APPLICATIONS_DIR, exist_ok=True)
+    os.makedirs(settings.LOGS_DIR, exist_ok=True)
+
     # Ensure models are imported so Base knows about them
     import backend.database.models  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        # Automatic schema migrations for new Phase 6 columns
+        migrations = [
+            "ALTER TABLE application_drafts ADD COLUMN pre_submit_screenshot VARCHAR(500)",
+            "ALTER TABLE application_drafts ADD COLUMN post_submit_screenshot VARCHAR(500)",
+            "ALTER TABLE applications ADD COLUMN pre_submit_screenshot VARCHAR(500)",
+            "ALTER TABLE applications ADD COLUMN post_submit_screenshot VARCHAR(500)",
+            "ALTER TABLE applications ADD COLUMN browser_logs JSON",
+        ]
+        for stmt in migrations:
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
+                pass  # Column already exists

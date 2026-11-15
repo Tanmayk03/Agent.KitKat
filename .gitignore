@@ -35,6 +35,8 @@ storage/resumes/*
 !storage/resumes/.gitkeep
 storage/applications/*
 !storage/applications/.gitkeep
+storage/screenshots/*
+!storage/screenshots/.gitkeep
 storage/logs/*
 !storage/logs/.gitkeep
 

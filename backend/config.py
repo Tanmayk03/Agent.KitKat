@@ -30,7 +30,13 @@ class Settings(BaseSettings):
     STORAGE_DIR: str = "storage"
     RESUMES_DIR: str = "storage/resumes"
     APPLICATIONS_DIR: str = "storage/applications"
+    SCREENSHOTS_DIR: str = "storage/screenshots"
     LOGS_DIR: str = "storage/logs"
+
+    # Browser Automation Settings
+    BROWSER_HEADLESS: bool = True
+    BROWSER_TIMEOUT_MS: int = 30000
+    BROWSER_USER_AGENT: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
     model_config = SettingsConfigDict(
         env_file=".env",
