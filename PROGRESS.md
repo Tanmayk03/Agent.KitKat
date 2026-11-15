@@ -4,7 +4,7 @@
 |---|---|---|---|
 | **Phase 1** | Local Backend & Ollama Integration | ✅ COMPLETED | 2026-11-15 |
 | **Phase 2** | Personal Profile & Resume Management | ✅ COMPLETED | 2026-11-15 |
-| **Phase 3** | Manual Job URL Analysis | ⏳ PENDING | - |
+| **Phase 3** | Manual Job URL Analysis (Mode B) | ✅ COMPLETED | 2026-11-15 |
 | **Phase 4** | Deterministic Eligibility & Resume Matching Engine | ⏳ PENDING | - |
 | **Phase 5** | Application Preparation & Cover Letter Drafting | ⏳ PENDING | - |
 | **Phase 6** | Playwright Browser Automation & Site Adapters | ⏳ PENDING | - |
@@ -49,3 +49,24 @@
   - `PUT /api/resumes/{id}/activate`: Status 200 OK
   - `DELETE /api/resumes/{id}`: Status 200 OK
 - **Tests Passed:** `tests/test_phase2.py` passed with 8 comprehensive integration test scenarios. Regression tests for Phase 1 also 100% green.
+
+---
+
+### Phase 3 Verification Summary
+- **Mode B Manual Job Analysis:**
+  - Ingests public job listings via pasted URL, raw text, or uploaded PDF/DOCX job description files.
+- **Web Content Scraping & Security (`URLReader`):**
+  - Respectful scraping with browser headers, HTML clean-up via BeautifulSoup (strips scripts, styles, nav, footers).
+  - Detects bot-walls/captchas/403s and safely falls back with `requires_manual_paste=True` (never attempts illegal bypass).
+- **Job Description Reader Agent (`JobReaderAgent`):**
+  - Hybrid AI architecture: local Qwen2.5 1.5B prompt extraction combined with deterministic regex validation.
+  - Successfully extracts company name, role title, required degree, graduation eligibility batches, minimum CGPA, technical skills, work mode, and stipend.
+- **Database & Storage:**
+  - New `Job` model persisted to SQLite.
+- **Endpoints Verified:**
+  - `POST /api/jobs/analyze-text`: Status 200 OK (extracted complex JD with full qualification & skill breakdown)
+  - `POST /api/jobs/analyze-file`: Status 200 OK (extracted PDF job description)
+  - `POST /api/jobs/analyze-url`: Status 200 OK (tested inaccessible URL handling & manual paste prompt)
+  - `GET /api/jobs`: Status 200 OK (lists all opportunities)
+  - `GET /api/jobs/{id}`: Status 200 OK (retrieves full job details)
+- **Tests Passed:** `tests/test_phase3.py` 100% green. Zero regressions across Phase 1 & 2 suites.

@@ -15,6 +15,7 @@ from backend.config import get_settings
 from backend.database.db import init_db
 from backend.routers.profile_router import router as profile_router
 from backend.routers.resume_router import router as resume_router
+from backend.routers.job_router import router as job_router
 from backend.schemas.health import HealthCheckResponse
 from backend.schemas.ai import AITestRequest, AITestResponse
 from backend.services.ollama_service import ollama_service
@@ -95,6 +96,7 @@ app.add_middleware(
 # Register API Routers
 app.include_router(profile_router)
 app.include_router(resume_router)
+app.include_router(job_router)
 
 
 @app.get("/", tags=["General"])

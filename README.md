@@ -28,18 +28,24 @@ Agent_KitKat/
 │   │   └── models.py               # UserProfile and Resume tables
 │   ├── routers/                    # API route controllers
 │   │   ├── profile_router.py       # Profile CRUD endpoints
-│   │   └── resume_router.py        # Resume upload, parse, list, and activate
+│   │   ├── resume_router.py        # Resume upload, parse, list, and activate
+│   │   └── job_router.py           # Mode B job analysis (URL, text, file)
 │   ├── schemas/                    # Pydantic data schemas
 │   │   ├── health.py               # Health & Ollama connection models
 │   │   ├── ai.py                   # AI prompt & generation models
 │   │   ├── profile.py              # Personal profile & preferences models
-│   │   └── resume.py               # Resume metadata & extracted sections models
+│   │   ├── resume.py               # Resume metadata & extracted sections models
+│   │   └── job.py                  # Job analysis request & structured details models
 │   ├── services/                   # Core business logic services
 │   │   ├── ollama_service.py       # Async Ollama client with retry & timeout handling
 │   │   ├── profile_service.py      # Profile retrieval & update logic
-│   │   └── resume_service.py       # Resume persistence & verification sync
+│   │   ├── resume_service.py       # Resume persistence & verification sync
+│   │   └── job_service.py          # Job URL scraping & text processing
+│   ├── agents/                     # Specialized AI agents
+│   │   └── job_reader.py           # Job Description Reader Agent (Qwen2.5 + regex)
 │   └── tools/                      # Reusable tool modules
-│       └── resume_parser.py        # PDF/DOCX text & skill extraction engine
+│       ├── resume_parser.py        # PDF/DOCX text & skill extraction engine
+│       └── url_reader.py           # Web scraper with bot-wall protection detection
 ├── storage/                        # Secure local storage (resumes, drafts, logs)
 │   ├── agent_kitkat.db             # Local SQLite database
 │   ├── resumes/                    # Stored resume documents
@@ -48,6 +54,7 @@ Agent_KitKat/
 ├── tests/                          # Automated verification tests
 │   ├── test_phase1.py              # In-process ASGI integration tests
 │   ├── test_phase2.py              # Profile & resume parser integration tests
+│   ├── test_phase3.py              # Mode B job analysis tests
 │   └── test_live_server.py         # Live TCP socket HTTP server tests
 ├── .env.example                    # Environment variable template
 ├── .gitignore                      # Git ignore patterns
@@ -96,6 +103,9 @@ To run the automated test suites:
 
 # Phase 2: Profile & Resume Parser integration tests
 .\venv\Scripts\python.exe tests\test_phase2.py
+
+# Phase 3: Mode B Job URL & Text Analysis tests
+.\venv\Scripts\python.exe tests\test_phase3.py
 
 # Live TCP HTTP server test
 .\venv\Scripts\python.exe tests\test_live_server.py

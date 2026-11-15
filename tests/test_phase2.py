@@ -95,6 +95,15 @@ async def run_phase2_tests():
     # Ensure DB tables are ready
     await init_db()
 
+    # Reset tables for reproducible test run
+    from sqlalchemy import delete
+    from backend.database.db import AsyncSessionLocal
+    from backend.database.models import UserProfile, Resume
+    async with AsyncSessionLocal() as session:
+        await session.execute(delete(Resume))
+        await session.execute(delete(UserProfile))
+        await session.commit()
+
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
 

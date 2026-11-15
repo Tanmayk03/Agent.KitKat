@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlalchemy import (
     Column,
     Integer,
+    Float,
     String,
     Text,
     Boolean,
@@ -126,3 +127,41 @@ class Resume(Base):
     # Timestamps
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Job(Base):
+    """
+    Discovered or manually pasted Job Postings.
+    Stores extracted qualifications, skills, eligibility rules, and raw JD.
+    """
+    __tablename__ = "jobs"
+
+    id = Column(String(36), primary_key=True, index=True)  # UUID4
+    company = Column(String(255), default="Unknown Company", index=True)
+    title = Column(String(255), default="Unknown Role", index=True)
+    description = Column(Text, default="")
+    location = Column(String(255), default="Not Specified")
+    work_mode = Column(String(50), default="Unknown")  # Remote, Hybrid, Onsite, Unknown
+    url = Column(String(1000), nullable=True, index=True)
+    source = Column(String(50), default="manual_url")  # manual_url, manual_text, manual_file, adzuna
+    job_id_external = Column(String(255), nullable=True)
+
+    # Requirements extracted by LLM & deterministic rules
+    required_degree = Column(String(255), nullable=True)
+    graduation_eligibility = Column(JSON, default=list)  # e.g. [2026, 2027]
+    minimum_cgpa = Column(Float, nullable=True)
+    required_skills = Column(JSON, default=list)
+    experience_required = Column(String(255), nullable=True)
+    salary_stipend = Column(String(255), nullable=True)
+    deadline = Column(String(100), nullable=True)
+
+    # Full text & raw metadata
+    raw_text = Column(Text, default="")
+
+    # Workflow Status
+    status = Column(String(50), default="analyzed")  # discovered, analyzed, shortlisted, rejected, applied, expired
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+

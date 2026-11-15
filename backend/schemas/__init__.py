@@ -15,6 +15,13 @@ from backend.schemas.resume import (
     ResumeDetailResponse,
     ResumeUploadResponse,
 )
+from backend.schemas.job import (
+    JobAnalyzeUrlRequest,
+    JobAnalyzeTextRequest,
+    ExtractedJobDetails,
+    JobAnalysisResponse,
+    JobListItem,
+)
 
 __all__ = [
     "HealthCheckResponse",
@@ -32,4 +39,9 @@ __all__ = [
     "ResumeListItem",
     "ResumeDetailResponse",
     "ResumeUploadResponse",
+    "JobAnalyzeUrlRequest",
+    "JobAnalyzeTextRequest",
+    "ExtractedJobDetails",
+    "JobAnalysisResponse",
+    "JobListItem",
 ]
