@@ -1,18 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Settings,
-  Sparkles,
   Clock,
   Layers,
   ShieldAlert,
-  CheckCircle2,
-  AlertTriangle,
   Play,
   Pause,
   Save,
   Check,
   Smartphone,
-  Wifi,
   ExternalLink,
 } from 'lucide-react';
 import { api } from '../services/api';
@@ -29,6 +24,7 @@ export default function SettingsPage({
   useEffect(() => {
     api.getNetworkInfo().then(setNetworkInfo).catch(console.warn);
   }, []);
+
   const [prefs, setPrefs] = useState(
     profile?.application_preferences || {
       daily_search_time: '09:00',
@@ -73,62 +69,62 @@ export default function SettingsPage({
   };
 
   return (
-    <div className="space-y-6 pb-16 max-w-4xl">
+    <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <div>
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-mono bg-amber-500/10 border border-amber-500/20 text-amber-300 mb-2">
-          <span>System Architecture & Governance</span>
+        <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-md text-xs font-mono bg-zinc-900 border border-zinc-800 text-zinc-400 mb-2">
+          <span>System Governance</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 tracking-tight">
           Settings & Automation Rules
         </h1>
-        <p className="text-sm text-slate-400">
+        <p className="text-xs sm:text-sm text-zinc-400 mt-1">
           Configure daily autonomous discovery parameters, submission authorization policies, and local AI runtime.
         </p>
       </div>
 
       {/* Global Emergency Stop Card */}
-      <div className="rounded-2xl bg-rose-950/20 border border-rose-500/40 p-6 space-y-3 shadow-lg">
+      <div className="rounded-xl bg-red-950/20 border border-red-900/40 p-4 sm:p-5 space-y-3">
         <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400">
-            <ShieldAlert className="w-6 h-6" />
+          <div className="p-2 rounded-lg bg-red-900/30 text-red-400">
+            <ShieldAlert className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-white">Global Emergency Stop Kill-Switch</h2>
-            <p className="text-xs text-rose-300/80">
+            <h2 className="text-sm font-semibold text-zinc-100">Global Emergency Stop Kill-Switch</h2>
+            <p className="text-xs text-zinc-400">
               Immediately aborts and closes any in-progress Playwright browser automation sessions.
             </p>
           </div>
         </div>
 
-        <div className="pt-2">
+        <div className="pt-1">
           <button
             onClick={onEmergencyStop}
-            className="flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950/50 active:scale-95 transition-all"
+            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-lg text-xs font-medium bg-red-900/60 hover:bg-red-800/70 text-red-200 border border-red-700/50 transition-colors"
           >
-            <ShieldAlert className="w-4 h-4" />
-            <span>TRIGGER EMERGENCY STOP NOW</span>
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>Trigger Emergency Stop Now</span>
           </button>
         </div>
       </div>
 
       {/* Submission Policies Selector */}
-      <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-6 space-y-4 shadow-xl">
-        <h2 className="text-base font-bold text-white flex items-center space-x-2">
-          <Layers className="w-4 h-4 text-amber-400" />
+      <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-3.5">
+        <h2 className="text-sm font-semibold text-zinc-100 flex items-center space-x-2">
+          <Layers className="w-4 h-4 text-zinc-400" />
           <span>Application Submission Policy</span>
         </h2>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-zinc-400">
           Controls whether Agent KitKat submits job applications autonomously or holds them for review.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
           {[
             {
               id: 'manual_approval',
               title: 'A. Manual Approval',
               desc: 'Prepares draft & maps fields. Holds application in queue until you explicitly click approve.',
-              badge: 'Recommended',
+              badge: 'Default',
             },
             {
               id: 'pre_authorized',
@@ -148,31 +144,31 @@ export default function SettingsPage({
               <div
                 key={policy.id}
                 onClick={() => setPrefs({ ...prefs, submission_policy: policy.id })}
-                className={`p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
+                className={`p-3.5 rounded-lg border cursor-pointer transition-colors flex flex-col justify-between space-y-3 ${
                   isSelected
-                    ? 'bg-amber-500/10 border-amber-500 text-amber-300 shadow-md shadow-amber-500/5'
-                    : 'bg-slate-800/40 border-slate-800 hover:border-slate-700 text-slate-400'
+                    ? 'bg-zinc-800/90 border-zinc-500 text-zinc-100'
+                    : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700 text-zinc-400'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-slate-100">{policy.title}</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-amber-400 border border-slate-700">
+                    <span className="font-semibold text-xs sm:text-sm text-zinc-100">{policy.title}</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/50">
                       {policy.badge}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">{policy.desc}</p>
+                  <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">{policy.desc}</p>
                 </div>
 
-                <div className="flex items-center space-x-1.5 text-xs font-semibold">
+                <div className="flex items-center space-x-1.5 text-xs font-medium">
                   <div
-                    className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                      isSelected ? 'border-amber-400 bg-amber-400' : 'border-slate-600'
+                    className={`w-3 h-3 rounded-full border flex items-center justify-center ${
+                      isSelected ? 'border-zinc-200 bg-zinc-200' : 'border-zinc-600'
                     }`}
                   >
-                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
+                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-zinc-950" />}
                   </div>
-                  <span className={isSelected ? 'text-amber-300' : 'text-slate-500'}>
+                  <span className={isSelected ? 'text-zinc-200' : 'text-zinc-500'}>
                     {isSelected ? 'Active Policy' : 'Select'}
                   </span>
                 </div>
@@ -183,27 +179,27 @@ export default function SettingsPage({
       </div>
 
       {/* Autonomous Scheduler Controls */}
-      <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-6 space-y-4 shadow-xl">
-        <h2 className="text-base font-bold text-white flex items-center space-x-2">
-          <Clock className="w-4 h-4 text-amber-400" />
+      <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-zinc-100 flex items-center space-x-2">
+          <Clock className="w-4 h-4 text-zinc-400" />
           <span>Daily Autonomous Scheduler (Mode A)</span>
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
               Daily Search Time (24h format)
             </label>
             <input
               type="time"
               value={prefs.daily_search_time || '09:00'}
               onChange={(e) => setPrefs({ ...prefs, daily_search_time: e.target.value })}
-              className="w-full px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-amber-500 font-mono"
+              className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 focus:outline-none focus:border-zinc-600 font-mono"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
               Max Daily Applications Cap
             </label>
             <input
@@ -214,13 +210,13 @@ export default function SettingsPage({
               onChange={(e) =>
                 setPrefs({ ...prefs, max_applications_per_day: parseInt(e.target.value) || 5 })
               }
-              className="w-full px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-amber-500 font-mono"
+              className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 focus:outline-none focus:border-zinc-600 font-mono"
             />
           </div>
 
           <div className="sm:col-span-2">
             <div className="flex justify-between items-center mb-1.5">
-              <label className="text-xs font-semibold text-slate-300">
+              <label className="text-xs font-medium text-zinc-300">
                 Minimum Match Score for Auto-Shortlist: {prefs.min_match_score || 75}%
               </label>
             </div>
@@ -231,18 +227,18 @@ export default function SettingsPage({
               step={5}
               value={prefs.min_match_score || 75}
               onChange={(e) => setPrefs({ ...prefs, min_match_score: parseInt(e.target.value) || 75 })}
-              className="w-full accent-amber-500 bg-slate-800 h-2 rounded-lg cursor-pointer"
+              className="w-full accent-zinc-200 bg-zinc-800 h-1.5 rounded-lg cursor-pointer"
             />
           </div>
         </div>
 
         {/* Scheduler Toggle Bar */}
-        <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+        <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
           <div className="text-xs">
-            <span className="text-slate-400 block">Scheduler Runner State</span>
+            <span className="text-zinc-500 block">Scheduler Runner State</span>
             <span
-              className={`font-mono font-bold ${
-                schedulerStatus?.is_running ? 'text-emerald-400' : 'text-slate-500'
+              className={`font-mono font-medium ${
+                schedulerStatus?.is_running ? 'text-emerald-400' : 'text-zinc-500'
               }`}
             >
               {schedulerStatus?.is_running ? 'Running (Active)' : 'Stopped (Standby)'}
@@ -251,10 +247,10 @@ export default function SettingsPage({
 
           <button
             onClick={toggleScheduler}
-            className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               schedulerStatus?.is_running
-                ? 'bg-slate-800 text-rose-300 hover:bg-rose-950/60 border border-slate-700'
-                : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
+                ? 'bg-zinc-800 text-red-300 hover:bg-zinc-700 border border-zinc-700/60'
+                : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-950'
             }`}
           >
             {schedulerStatus?.is_running ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -264,36 +260,36 @@ export default function SettingsPage({
       </div>
 
       {/* iPhone PWA & Remote Network Access Card */}
-      <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-6 space-y-4 shadow-xl">
-        <h2 className="text-base font-bold text-white flex items-center space-x-2">
-          <Smartphone className="w-4 h-4 text-amber-400" />
+      <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-3.5">
+        <h2 className="text-sm font-semibold text-zinc-100 flex items-center space-x-2">
+          <Smartphone className="w-4 h-4 text-zinc-400" />
           <span>iPhone PWA & Local Network Remote Access</span>
         </h2>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-zinc-400">
           Control Agent KitKat directly from your iPhone without installing third-party apps from the App Store.
         </p>
 
         {networkInfo ? (
-          <div className="space-y-4 pt-1">
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-3 pt-1">
+            <div className="p-3.5 rounded-lg bg-zinc-950 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div>
-                <span className="text-[10px] text-slate-500 uppercase font-mono block">Your iPhone Safari Access URL</span>
-                <span className="font-mono text-sm font-bold text-amber-400">{networkInfo.mobile_access_url}</span>
+                <span className="text-[10px] text-zinc-500 uppercase font-mono block">iPhone Safari Access URL</span>
+                <span className="font-mono text-xs sm:text-sm font-medium text-zinc-200">{networkInfo.mobile_access_url}</span>
               </div>
               <a
                 href={networkInfo.mobile_access_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center space-x-1.5 self-start sm:self-auto"
+                className="px-3 py-1.5 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 flex items-center space-x-1.5 self-start sm:self-auto"
               >
                 <span>Open URL</span>
-                <ExternalLink className="w-3.5 h-3.5" />
+                <ExternalLink className="w-3 h-3" />
               </a>
             </div>
 
-            <div className="space-y-2 text-xs text-slate-300">
-              <span className="font-semibold text-slate-200 block">How to Install on iPhone:</span>
-              <ul className="space-y-1.5 list-disc list-inside text-slate-400">
+            <div className="space-y-1.5 text-xs text-zinc-400">
+              <span className="font-medium text-zinc-300 block">How to Install on iPhone:</span>
+              <ul className="space-y-1 list-disc list-inside text-zinc-400">
                 {networkInfo.setup_instructions?.map((inst, i) => (
                   <li key={i}>{inst}</li>
                 ))}
@@ -301,24 +297,24 @@ export default function SettingsPage({
             </div>
           </div>
         ) : (
-          <div className="text-xs text-slate-500">Detecting local network IP...</div>
+          <div className="text-xs text-zinc-500">Detecting local network IP...</div>
         )}
       </div>
 
       {/* Save Settings Bar */}
-      <div className="flex items-center space-x-4 pt-2">
+      <div className="flex items-center space-x-3 pt-1">
         <button
           onClick={handleSavePrefs}
           disabled={saving}
-          className="flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all disabled:opacity-50"
+          className="flex items-center space-x-2 px-5 py-2 rounded-lg text-xs sm:text-sm font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-950 transition-colors disabled:opacity-50"
         >
-          <Save className="w-4 h-4" />
+          <Save className="w-3.5 h-3.5" />
           <span>{saving ? 'Saving...' : 'Save All Preferences'}</span>
         </button>
 
         {success && (
-          <span className="text-xs font-semibold text-emerald-400 flex items-center space-x-1">
-            <Check className="w-4 h-4" />
+          <span className="text-xs font-medium text-emerald-400 flex items-center space-x-1">
+            <Check className="w-3.5 h-3.5" />
             <span>Preferences saved successfully!</span>
           </span>
         )}

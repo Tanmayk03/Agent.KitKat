@@ -3,16 +3,12 @@ import {
   Link,
   FileText,
   Upload,
-  Sparkles,
   CheckCircle2,
   XCircle,
-  HelpCircle,
-  Play,
-  ArrowRight,
   Shield,
-  Layers,
   Copy,
   Check,
+  ArrowRight,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -55,7 +51,6 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
 
       setAnalysisResult(res);
 
-      // If job was saved successfully, evaluate matching & eligibility
       if (res && res.id && !res.requires_manual_paste) {
         const evalData = await api.evaluateJob(res.id);
         setEvalResult(evalData);
@@ -91,29 +86,29 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
   const extracted = analysisResult?.extracted;
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6">
       {/* Header */}
       <div>
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-mono bg-amber-500/10 border border-amber-500/20 text-amber-300 mb-2">
-          <span>Mode B: Targeted Opportunity Analysis</span>
+        <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-md text-xs font-mono bg-zinc-900 border border-zinc-800 text-zinc-400 mb-2">
+          <span>Mode B &bull; Targeted Opportunity Analysis</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 tracking-tight">
           Analyze Any Job Opportunity
         </h1>
-        <p className="text-sm text-slate-400">
+        <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-2xl">
           Paste any LinkedIn, Naukri, or career page URL, paste raw text, or upload a JD document.
-          Agent KitKat will verify your 2027 graduation eligibility and calculate your resume match score.
+          Agent KitKat verifies graduation eligibility and calculates resume match score.
         </p>
       </div>
 
       {/* Input Mode Selector & Form */}
-      <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-6 shadow-xl space-y-6">
+      <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-5">
         {/* Mode Tabs */}
-        <div className="flex border-b border-slate-800 space-x-6 text-sm font-medium">
+        <div className="flex border-b border-zinc-800 space-x-4 sm:space-x-6 text-xs sm:text-sm">
           {[
             { id: 'url', label: 'Paste Job URL', icon: Link },
-            { id: 'text', label: 'Paste Job Description', icon: FileText },
-            { id: 'file', label: 'Upload JD Document', icon: Upload },
+            { id: 'text', label: 'Paste Job Text', icon: FileText },
+            { id: 'file', label: 'Upload JD File', icon: Upload },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeMode === tab.id;
@@ -124,13 +119,13 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
                   setActiveMode(tab.id);
                   setError(null);
                 }}
-                className={`flex items-center space-x-2 pb-3 border-b-2 transition-all ${
+                className={`flex items-center space-x-2 pb-2.5 border-b-2 transition-colors ${
                   isActive
-                    ? 'border-amber-500 text-amber-400 font-semibold'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? 'border-zinc-200 text-zinc-100 font-medium'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-3.5 h-3.5" />
                 <span>{tab.label}</span>
               </button>
             );
@@ -141,21 +136,21 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
         <form onSubmit={handleAnalyze} className="space-y-4">
           {activeMode === 'url' && (
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-2">
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">
                 Public Job Posting URL
               </label>
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row gap-2.5">
                 <input
                   type="url"
-                  placeholder="https://www.linkedin.com/jobs/view/... or https://careers.company.com/..."
+                  placeholder="https://www.linkedin.com/jobs/view/... or careers page URL"
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  className="flex-1 px-3.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
                 />
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
+                  className="px-4 py-2 rounded-lg text-xs sm:text-sm font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-950 transition-colors disabled:opacity-50 whitespace-nowrap"
                 >
                   {loading ? 'Analyzing with Local AI...' : 'Analyze URL'}
                 </button>
@@ -165,9 +160,9 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
 
           {activeMode === 'text' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-medium text-zinc-300 mb-1.5">
                     Job Title (Optional)
                   </label>
                   <input
@@ -175,40 +170,40 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
                     placeholder="e.g. Software Engineer Intern"
                     value={titleInput}
                     onChange={(e) => setTitleInput(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    className="w-full px-3.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-medium text-zinc-300 mb-1.5">
                     Company Name (Optional)
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Acme Cloud Corp"
+                    placeholder="e.g. Acme Tech"
                     value={companyInput}
                     onChange={(e) => setCompanyInput(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    className="w-full px-3.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
                   Job Description Text
                 </label>
                 <textarea
                   rows={6}
-                  placeholder="Paste complete job description requirements here..."
+                  placeholder="Paste complete job requirements here..."
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-xs"
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all disabled:opacity-50"
+                className="px-4 py-2 rounded-lg text-xs sm:text-sm font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-950 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Analyzing with Local AI...' : 'Analyze Text'}
               </button>
@@ -217,10 +212,10 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
 
           {activeMode === 'file' && (
             <div className="space-y-4">
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">
                 Upload Job Description (PDF or DOCX)
               </label>
-              <div className="border-2 border-dashed border-slate-700 hover:border-amber-500/50 rounded-2xl p-6 text-center transition-colors">
+              <div className="border border-dashed border-zinc-700 hover:border-zinc-500 rounded-xl p-6 text-center transition-colors">
                 <input
                   type="file"
                   accept=".pdf,.docx"
@@ -229,18 +224,18 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
                   id="jd-file-upload"
                 />
                 <label htmlFor="jd-file-upload" className="cursor-pointer space-y-2 flex flex-col items-center">
-                  <Upload className="w-8 h-8 text-amber-400" />
-                  <span className="text-sm font-medium text-slate-300">
-                    {selectedFile ? selectedFile.name : 'Click to browse or drop PDF / DOCX'}
+                  <Upload className="w-6 h-6 text-zinc-400" />
+                  <span className="text-xs sm:text-sm font-medium text-zinc-300">
+                    {selectedFile ? selectedFile.name : 'Select or drop PDF / DOCX file'}
                   </span>
-                  <span className="text-xs text-slate-500">Supports up to 10MB</span>
+                  <span className="text-[11px] text-zinc-500">Supports documents up to 10MB</span>
                 </label>
               </div>
 
               <button
                 type="submit"
                 disabled={loading || !selectedFile}
-                className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all disabled:opacity-50"
+                className="px-4 py-2 rounded-lg text-xs sm:text-sm font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-950 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Analyzing with Local AI...' : 'Analyze Document'}
               </button>
@@ -249,11 +244,11 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
         </form>
 
         {error && (
-          <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-start space-x-3">
-            <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div className="p-3.5 rounded-lg bg-red-950/20 border border-red-900/40 text-red-300 text-xs flex items-start space-x-2.5">
+            <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
             <div>
-              <p className="font-semibold">Analysis Notice</p>
-              <p className="text-xs mt-0.5">{error}</p>
+              <p className="font-medium">Analysis Notice</p>
+              <p className="text-zinc-400 mt-0.5">{error}</p>
             </div>
           </div>
         )}
@@ -261,86 +256,92 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
 
       {/* Analysis Results View */}
       {analysisResult && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Top Overview Cards: Eligibility & Match Score */}
           {evalResult && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               {/* Eligibility Card */}
               <div
-                className={`rounded-2xl border p-5 ${
+                className={`rounded-xl border p-4 sm:p-5 ${
                   evalResult.eligibility?.overall_status === 'PASS'
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    ? 'bg-zinc-900/60 border-emerald-800/40 text-zinc-200'
                     : evalResult.eligibility?.overall_status === 'FAIL'
-                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                    : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                    ? 'bg-zinc-900/60 border-red-800/40 text-zinc-200'
+                    : 'bg-zinc-900/60 border-zinc-800 text-zinc-200'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Shield className="w-5 h-5" />
-                    <span className="font-bold text-sm">Eligibility Verification</span>
+                    <Shield className="w-4 h-4 text-zinc-400" />
+                    <span className="font-semibold text-xs sm:text-sm">Eligibility Verification</span>
                   </div>
-                  <span className="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase tracking-wider bg-slate-950/60 border border-current">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold uppercase ${
+                      evalResult.eligibility?.overall_status === 'PASS'
+                        ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/40'
+                        : 'bg-red-950/40 text-red-400 border border-red-800/40'
+                    }`}
+                  >
                     {evalResult.eligibility?.overall_status}
                   </span>
                 </div>
-                <div className="mt-4 space-y-2 text-xs">
+                <div className="mt-3.5 space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Graduation Year (2027)</span>
-                    <span className="font-mono font-semibold">{evalResult.eligibility?.graduation_year?.status}</span>
+                    <span className="text-zinc-400">Graduation Year (2027)</span>
+                    <span className="font-mono font-medium text-zinc-200">{evalResult.eligibility?.graduation_year?.status}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Degree (B.Tech)</span>
-                    <span className="font-mono font-semibold">{evalResult.eligibility?.degree?.status}</span>
+                    <span className="text-zinc-400">Degree (B.Tech)</span>
+                    <span className="font-mono font-medium text-zinc-200">{evalResult.eligibility?.degree?.status}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">CGPA (8.44)</span>
-                    <span className="font-mono font-semibold">{evalResult.eligibility?.cgpa?.status}</span>
+                    <span className="text-zinc-400">CGPA</span>
+                    <span className="font-mono font-medium text-zinc-200">{evalResult.eligibility?.cgpa?.status}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Work Mode</span>
-                    <span className="font-mono font-semibold">{evalResult.eligibility?.work_mode?.status}</span>
+                    <span className="text-zinc-400">Work Mode</span>
+                    <span className="font-mono font-medium text-zinc-200">{evalResult.eligibility?.work_mode?.status}</span>
                   </div>
                 </div>
 
                 {evalResult.eligibility?.rejection_reasons?.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-rose-500/20 text-xs text-rose-400">
-                    <span className="font-semibold">Rejection Reason: </span>
+                  <div className="mt-3 pt-2.5 border-t border-zinc-800 text-xs text-red-300">
+                    <span className="font-medium">Notice: </span>
                     {evalResult.eligibility.rejection_reasons.join(', ')}
                   </div>
                 )}
               </div>
 
               {/* Match Score Card */}
-              <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-5 space-y-3">
+              <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 p-4 sm:p-5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2 text-slate-300 text-sm font-bold">
-                    <Sparkles className="w-5 h-5 text-amber-400" />
+                  <div className="flex items-center space-x-2 text-zinc-200 text-xs sm:text-sm font-semibold">
+                    <CheckCircle2 className="w-4 h-4 text-zinc-400" />
                     <span>Weighted Resume Match</span>
                   </div>
-                  <span className="text-2xl font-extrabold text-amber-400 font-mono">
+                  <span className="text-2xl font-bold text-zinc-100 font-mono">
                     {evalResult.overall_score}%
                   </span>
                 </div>
 
                 <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between text-slate-400">
+                  <div className="flex justify-between text-zinc-400">
                     <span>Technical Skills (Weight: 35%)</span>
-                    <span className="font-mono text-slate-200">
+                    <span className="font-mono text-zinc-200">
                       {evalResult.category_scores?.technical_skills} / 35
                     </span>
                   </div>
-                  <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                  <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
                     <div
-                      className="bg-amber-400 h-full rounded-full"
+                      className="bg-zinc-200 h-full rounded-full"
                       style={{ width: `${(evalResult.category_scores?.technical_skills / 35) * 100}%` }}
                     />
                   </div>
                 </div>
 
                 <div className="pt-2 flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Recommendation</span>
-                  <span className="font-mono font-semibold text-amber-300">
+                  <span className="text-zinc-400">Recommendation</span>
+                  <span className="font-mono font-medium text-zinc-200">
                     {evalResult.recommendation}
                   </span>
                 </div>
@@ -350,26 +351,26 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
 
           {/* Extracted Details Breakdown */}
           {extracted && (
-            <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-6 space-y-4">
-              <h2 className="text-base font-bold text-white">Extracted Job Information</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-                <div className="p-3 bg-slate-800/50 rounded-xl">
-                  <span className="text-slate-400 block mb-1">Company</span>
-                  <span className="font-semibold text-slate-200 text-sm">{extracted.company_name}</span>
+            <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-4">
+              <h2 className="text-sm font-semibold text-zinc-100">Extracted Job Information</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-lg">
+                  <span className="text-zinc-400 block mb-1">Company</span>
+                  <span className="font-medium text-zinc-200 text-xs sm:text-sm">{extracted.company_name}</span>
                 </div>
-                <div className="p-3 bg-slate-800/50 rounded-xl">
-                  <span className="text-slate-400 block mb-1">Role Title</span>
-                  <span className="font-semibold text-slate-200 text-sm">{extracted.job_title}</span>
+                <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-lg">
+                  <span className="text-zinc-400 block mb-1">Role Title</span>
+                  <span className="font-medium text-zinc-200 text-xs sm:text-sm">{extracted.job_title}</span>
                 </div>
-                <div className="p-3 bg-slate-800/50 rounded-xl">
-                  <span className="text-slate-400 block mb-1">Work Mode & Location</span>
-                  <span className="font-semibold text-slate-200 text-sm">
+                <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-lg">
+                  <span className="text-zinc-400 block mb-1">Work Mode & Location</span>
+                  <span className="font-medium text-zinc-200 text-xs sm:text-sm">
                     {extracted.work_mode || 'Remote'} ({extracted.work_location || 'India'})
                   </span>
                 </div>
-                <div className="p-3 bg-slate-800/50 rounded-xl">
-                  <span className="text-slate-400 block mb-1">Stipend / Salary</span>
-                  <span className="font-semibold text-amber-400 text-sm font-mono">
+                <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-lg">
+                  <span className="text-zinc-400 block mb-1">Stipend / Salary</span>
+                  <span className="font-medium text-zinc-200 text-xs sm:text-sm font-mono">
                     {extracted.salary_or_stipend || 'Competitive'}
                   </span>
                 </div>
@@ -377,30 +378,29 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
 
               {/* Skills Tags */}
               <div>
-                <span className="text-xs font-semibold text-slate-300 block mb-2">Required Skills</span>
+                <span className="text-xs font-medium text-zinc-400 block mb-2">Required Skills</span>
                 <div className="flex flex-wrap gap-1.5">
                   {extracted.required_skills?.map((s, idx) => (
                     <span
                       key={idx}
-                      className="px-2.5 py-1 rounded-md text-xs font-mono bg-slate-800 text-slate-300 border border-slate-700"
+                      className="px-2 py-0.5 rounded text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700/50"
                     >
                       {s}
                     </span>
                   ))}
                   {(!extracted.required_skills || extracted.required_skills.length === 0) && (
-                    <span className="text-xs text-slate-500">None explicitly listed.</span>
+                    <span className="text-xs text-zinc-500">None explicitly listed.</span>
                   )}
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-4 border-t border-slate-800 flex flex-wrap gap-3">
+              <div className="pt-3 border-t border-zinc-800 flex flex-wrap gap-2.5">
                 <button
                   onClick={handlePrepareDraft}
                   disabled={preparingDraft}
-                  className="flex items-center space-x-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all disabled:opacity-50"
+                  className="flex items-center space-x-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-950 transition-colors disabled:opacity-50"
                 >
-                  <Sparkles className="w-4 h-4" />
                   <span>{preparingDraft ? 'Generating Tailored Draft...' : 'Prepare Application Draft'}</span>
                 </button>
               </div>
@@ -409,51 +409,51 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
 
           {/* Prepared Draft Preview */}
           {draftResult && (
-            <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-6 space-y-4">
+            <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-white">Tailored Application Prepared</h3>
-                  <p className="text-xs text-slate-400">
+                  <h3 className="text-sm font-semibold text-zinc-100">Tailored Application Prepared</h3>
+                  <p className="text-xs text-zinc-400">
                     Grounded strictly in your verified profile and uploaded resume.
                   </p>
                 </div>
                 <button
                   onClick={copyCoverLetter}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                  className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
                 >
-                  {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  <span>{copied ? 'Copied!' : 'Copy Cover Letter'}</span>
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copied' : 'Copy Letter'}</span>
                 </button>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300">Generated Cover Letter</label>
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-300">Generated Cover Letter</label>
+                <div className="p-3.5 rounded-lg bg-zinc-950 border border-zinc-800 font-mono text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
                   {draftResult.cover_letter}
                 </div>
               </div>
 
               {/* Form Fields Mapped */}
-              <div className="space-y-2 pt-2">
-                <label className="text-xs font-semibold text-slate-300">ATS Form Fields Mapped</label>
+              <div className="space-y-1.5 pt-1">
+                <label className="text-xs font-medium text-zinc-300">ATS Form Fields Mapped</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                   {Object.entries(draftResult.form_field_values || {}).map(([k, v]) => (
-                    <div key={k} className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block uppercase font-mono">{k}</span>
-                      <span className="text-slate-200 font-medium truncate block">{String(v)}</span>
+                    <div key={k} className="p-2.5 rounded-md bg-zinc-900 border border-zinc-800">
+                      <span className="text-[10px] text-zinc-500 block uppercase font-mono">{k}</span>
+                      <span className="text-zinc-200 font-medium truncate block">{String(v)}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Review & Approve Button */}
-              <div className="pt-3">
+              <div className="pt-2">
                 <button
                   onClick={() => onNavigateTab('approvals')}
-                  className="flex items-center space-x-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-500/20 transition-all"
+                  className="flex items-center space-x-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-950 transition-colors"
                 >
                   <span>Go to Approvals Queue</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>

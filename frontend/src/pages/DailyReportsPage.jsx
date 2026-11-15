@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-  BarChart3,
   Calendar,
-  FileText,
   CheckCircle2,
-  AlertCircle,
-  Briefcase,
-  Send,
-  Clock,
-  TrendingUp,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -41,27 +34,27 @@ export default function DailyReportsPage() {
   }, []);
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6">
       {/* Header */}
       <div>
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-mono bg-amber-500/10 border border-amber-500/20 text-amber-300 mb-2">
-          <span>Continuous Career Intelligence</span>
+        <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-md text-xs font-mono bg-zinc-900 border border-zinc-800 text-zinc-400 mb-2">
+          <span>Career Intelligence</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 tracking-tight">
           Daily Autonomous Hunting Reports
         </h1>
-        <p className="text-sm text-slate-400">
-          Audited summaries generated after each daily discovery cycle. Every single number is derived directly from live database tables.
+        <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-2xl">
+          Audited summaries generated after each daily discovery cycle. Every single number is derived directly from live database records.
         </p>
       </div>
 
       {loading ? (
-        <div className="py-16 text-center text-slate-400 text-sm">Loading activity reports...</div>
+        <div className="py-16 text-center text-zinc-500 text-xs sm:text-sm">Loading activity reports...</div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Left Column: Historical Reports List */}
-          <div className="lg:col-span-4 space-y-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block px-1">
+          <div className="lg:col-span-4 space-y-2">
+            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider block px-1">
               Historical Activity Reports
             </span>
 
@@ -72,33 +65,33 @@ export default function DailyReportsPage() {
                   <div
                     key={r.id}
                     onClick={() => setSelectedReport(r)}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                    className={`p-3.5 rounded-lg border cursor-pointer transition-colors ${
                       isSelected
-                        ? 'bg-amber-500/10 border-amber-500/50 shadow-md shadow-amber-500/5'
-                        : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                        ? 'bg-zinc-800/90 border-zinc-600'
+                        : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <Calendar className="w-4 h-4 text-amber-400" />
-                        <span className="text-sm font-bold text-white font-mono">{r.report_date}</span>
+                        <Calendar className="w-3.5 h-3.5 text-zinc-400" />
+                        <span className="text-xs sm:text-sm font-semibold text-zinc-100 font-mono">{r.report_date}</span>
                       </div>
-                      <span className="text-xs font-mono font-semibold text-slate-400">
+                      <span className="text-xs font-mono font-medium text-zinc-400">
                         {r.new_found} found
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-800/80 text-[10px] text-slate-400 font-mono text-center">
+                    <div className="grid grid-cols-3 gap-2 mt-2.5 pt-2 border-t border-zinc-800/80 text-[10px] text-zinc-400 font-mono text-center">
                       <div>
-                        <span className="text-emerald-400 font-bold block">{r.eligible_count}</span>
+                        <span className="text-emerald-400 font-medium block">{r.eligible_count}</span>
                         <span>Eligible</span>
                       </div>
                       <div>
-                        <span className="text-purple-400 font-bold block">{r.prepared_count}</span>
+                        <span className="text-zinc-200 font-medium block">{r.prepared_count}</span>
                         <span>Prepared</span>
                       </div>
                       <div>
-                        <span className="text-sky-400 font-bold block">{r.submitted_count}</span>
+                        <span className="text-zinc-300 font-medium block">{r.submitted_count}</span>
                         <span>Submitted</span>
                       </div>
                     </div>
@@ -110,50 +103,50 @@ export default function DailyReportsPage() {
 
           {/* Right Column: Active Report Viewer */}
           {selectedReport && (
-            <div className="lg:col-span-8 rounded-2xl bg-slate-900/90 border border-slate-800 p-6 space-y-6 shadow-xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+            <div className="lg:col-span-8 rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-zinc-800">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Daily Report: {selectedReport.report_date}</h2>
-                  <p className="text-xs text-slate-400">
+                  <h2 className="text-sm sm:text-base font-semibold text-zinc-100">Daily Report: {selectedReport.report_date}</h2>
+                  <p className="text-xs text-zinc-400">
                     Generated {new Date(selectedReport.created_at).toLocaleString()}
                   </p>
                 </div>
-                <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-mono bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Real Database Verified</span>
+                <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded text-xs font-mono bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span>Database Verified</span>
                 </div>
               </div>
 
               {/* Metrics Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-800">
-                  <span className="text-slate-400 block mb-1">New Today</span>
-                  <span className="text-xl font-bold font-mono text-white">{selectedReport.new_found}</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="p-3 rounded-lg bg-zinc-900 border border-zinc-800">
+                  <span className="text-zinc-400 block mb-1">New Today</span>
+                  <span className="text-lg sm:text-xl font-semibold font-mono text-zinc-100">{selectedReport.new_found}</span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-800">
-                  <span className="text-slate-400 block mb-1">Eligible (PASS)</span>
-                  <span className="text-xl font-bold font-mono text-emerald-400">
+                <div className="p-3 rounded-lg bg-zinc-900 border border-zinc-800">
+                  <span className="text-zinc-400 block mb-1">Eligible (PASS)</span>
+                  <span className="text-lg sm:text-xl font-semibold font-mono text-emerald-400">
                     {selectedReport.eligible_count}
                   </span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-800">
-                  <span className="text-slate-400 block mb-1">Prepared</span>
-                  <span className="text-xl font-bold font-mono text-amber-400">
+                <div className="p-3 rounded-lg bg-zinc-900 border border-zinc-800">
+                  <span className="text-zinc-400 block mb-1">Prepared</span>
+                  <span className="text-lg sm:text-xl font-semibold font-mono text-zinc-200">
                     {selectedReport.prepared_count}
                   </span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-800">
-                  <span className="text-slate-400 block mb-1">Submitted</span>
-                  <span className="text-xl font-bold font-mono text-purple-400">
+                <div className="p-3 rounded-lg bg-zinc-900 border border-zinc-800">
+                  <span className="text-zinc-400 block mb-1">Submitted</span>
+                  <span className="text-lg sm:text-xl font-semibold font-mono text-zinc-300">
                     {selectedReport.submitted_count}
                   </span>
                 </div>
               </div>
 
               {/* Formatted Markdown Report View */}
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-slate-300 block">Executive Summary Document</span>
-                <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium text-zinc-300 block">Executive Summary Document</span>
+                <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800 font-mono text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
                   {selectedReport.summary_markdown}
                 </div>
               </div>

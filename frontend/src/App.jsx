@@ -63,7 +63,7 @@ export default function App() {
   const handleEmergencyStop = async () => {
     try {
       const res = await api.emergencyStop();
-      setEmergencyAlert(res.message || '🚨 All active browser sessions terminated immediately.');
+      setEmergencyAlert(res.message || 'Emergency Stop Activated: All active browser sessions terminated.');
       setTimeout(() => setEmergencyAlert(null), 5000);
     } catch (err) {
       alert(`Emergency stop failed: ${err.message}`);
@@ -86,7 +86,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans">
       {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
@@ -98,13 +98,13 @@ export default function App() {
 
       {/* Emergency Alert Toast Banner */}
       {emergencyAlert && (
-        <div className="bg-rose-600 text-white text-xs sm:text-sm font-bold py-2.5 px-4 text-center shadow-lg animate-pulse">
+        <div className="bg-red-500/15 border-b border-red-500/30 text-red-200 text-xs sm:text-sm font-medium py-2.5 px-4 text-center backdrop-blur-md">
           {emergencyAlert}
         </div>
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 py-5 sm:py-8 pb-24 lg:pb-12">
         {activeTab === 'dashboard' && (
           <DashboardPage
             profile={profile}
@@ -164,10 +164,10 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500 hidden sm:block">
+      <footer className="border-t border-zinc-850/80 bg-zinc-950 py-5 text-center text-xs text-zinc-500 hidden sm:block">
         <p>
-          <span className="text-amber-400 font-bold">Agent KitKat</span> – Autonomous AI Career Assistant • Powered by Ollama{' '}
-          <span className="font-mono text-slate-400">(qwen2.5:1.5b)</span> • ₹0 Operating Budget
+          <span className="text-zinc-200 font-medium">Agent KitKat</span> &mdash; Autonomous Career Assistant &bull; Local Ollama{' '}
+          <span className="font-mono text-zinc-400 text-[11px]">(qwen2.5:1.5b)</span> &bull; 100% Free
         </p>
       </footer>
     </div>

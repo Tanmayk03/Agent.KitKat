@@ -1,13 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FileText,
   Upload,
   CheckCircle2,
   Trash2,
-  Sparkles,
-  ShieldCheck,
-  Check,
-  AlertCircle,
   FileCheck,
 } from 'lucide-react';
 import { api } from '../services/api';
@@ -76,28 +71,28 @@ export default function ResumesPage({ onResumeChanged }) {
   };
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6">
       {/* Header */}
       <div>
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-mono bg-amber-500/10 border border-amber-500/20 text-amber-300 mb-2">
+        <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-md text-xs font-mono bg-zinc-900 border border-zinc-800 text-zinc-400 mb-2">
           <span>Candidate Resume Repository</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 tracking-tight">
           Manage Resumes & Verification
         </h1>
-        <p className="text-sm text-slate-400">
+        <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-2xl">
           Upload your latest PDF or DOCX resume. Agent KitKat parses qualifications and uses it as the source of truth for skill verification and tailoring.
         </p>
       </div>
 
       {/* Upload Box */}
-      <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-6 shadow-xl space-y-4">
-        <h2 className="text-base font-bold text-white flex items-center space-x-2">
-          <Upload className="w-4 h-4 text-amber-400" />
+      <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-3">
+        <h2 className="text-sm font-semibold text-zinc-100 flex items-center space-x-2">
+          <Upload className="w-4 h-4 text-zinc-400" />
           <span>Upload New Resume</span>
         </h2>
 
-        <div className="border-2 border-dashed border-slate-700 hover:border-amber-500/50 rounded-2xl p-6 text-center transition-colors">
+        <div className="border border-dashed border-zinc-700 hover:border-zinc-500 rounded-xl p-6 text-center transition-colors">
           <input
             type="file"
             accept=".pdf,.docx"
@@ -107,27 +102,27 @@ export default function ResumesPage({ onResumeChanged }) {
             id="resume-file-input"
           />
           <label htmlFor="resume-file-input" className="cursor-pointer space-y-2 flex flex-col items-center">
-            <Upload className={`w-8 h-8 text-amber-400 ${uploading ? 'animate-bounce' : ''}`} />
-            <span className="text-sm font-medium text-slate-200">
+            <Upload className={`w-6 h-6 text-zinc-400 ${uploading ? 'animate-bounce' : ''}`} />
+            <span className="text-xs sm:text-sm font-medium text-zinc-200">
               {uploading ? 'Parsing and Verifying Skills...' : 'Click to browse or drop your PDF / DOCX resume'}
             </span>
-            <span className="text-xs text-slate-500">Supports standard ATS PDF and Word documents up to 15MB</span>
+            <span className="text-[11px] text-zinc-500">Supports standard ATS PDF and Word documents up to 15MB</span>
           </label>
         </div>
       </div>
 
       {/* Resumes List & Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left Column: List */}
-        <div className="lg:col-span-5 space-y-3">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block px-1">
+        <div className="lg:col-span-5 space-y-2">
+          <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider block px-1">
             Uploaded Resumes ({resumes.length})
           </span>
 
           {loading ? (
-            <div className="py-8 text-center text-slate-500 text-xs">Loading resumes...</div>
+            <div className="py-8 text-center text-zinc-500 text-xs">Loading resumes...</div>
           ) : resumes.length === 0 ? (
-            <div className="p-8 rounded-xl bg-slate-900 border border-slate-800 text-center text-xs text-slate-500">
+            <div className="p-8 rounded-xl bg-zinc-900/40 border border-zinc-800 text-center text-xs text-zinc-500">
               No resumes uploaded yet. Upload your B.Tech resume above.
             </div>
           ) : (
@@ -137,34 +132,34 @@ export default function ResumesPage({ onResumeChanged }) {
                 <div
                   key={r.id}
                   onClick={() => setSelectedResume(r)}
-                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                  className={`p-3.5 rounded-lg border cursor-pointer transition-colors ${
                     isSelected
-                      ? 'bg-amber-500/10 border-amber-500/50 shadow-md shadow-amber-500/5'
-                      : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      ? 'bg-zinc-800/90 border-zinc-600'
+                      : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center space-x-2">
-                      <FileCheck className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                    <div className="flex items-center space-x-2.5">
+                      <FileCheck className="w-4 h-4 text-zinc-400 flex-shrink-0" />
                       <div>
-                        <h3 className="text-sm font-bold text-white truncate max-w-[200px]">
+                        <h3 className="text-xs sm:text-sm font-semibold text-zinc-100 truncate max-w-[180px] sm:max-w-[220px]">
                           {r.file_name}
                         </h3>
-                        <div className="text-[11px] text-slate-400 font-mono">
-                          {(r.file_size_bytes / 1024).toFixed(1)} KB • {r.file_type.toUpperCase()}
+                        <div className="text-[11px] text-zinc-500 font-mono">
+                          {(r.file_size_bytes / 1024).toFixed(1)} KB &bull; {r.file_type.toUpperCase()}
                         </div>
                       </div>
                     </div>
 
                     {r.is_active && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-950/40 text-emerald-400 border border-emerald-800/40">
                         ACTIVE
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-800/80 text-xs">
-                    <span className="text-slate-400 font-mono text-[11px]">
+                  <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-zinc-800/80 text-xs">
+                    <span className="text-zinc-400 font-mono text-[11px]">
                       {r.extracted_skills_count} skills extracted
                     </span>
 
@@ -175,7 +170,7 @@ export default function ResumesPage({ onResumeChanged }) {
                             e.stopPropagation();
                             handleActivate(r.id);
                           }}
-                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition-all"
+                          className="px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 transition-colors"
                         >
                           Make Active
                         </button>
@@ -185,10 +180,10 @@ export default function ResumesPage({ onResumeChanged }) {
                           e.stopPropagation();
                           handleDelete(r.id);
                         }}
-                        className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
+                        className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
                         title="Delete resume"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -200,16 +195,16 @@ export default function ResumesPage({ onResumeChanged }) {
 
         {/* Right Column: Structured Data Inspector */}
         {selectedResume && (
-          <div className="lg:col-span-7 rounded-2xl bg-slate-900/90 border border-slate-800 p-6 space-y-5 shadow-xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="lg:col-span-7 rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div>
-                <h3 className="text-base font-bold text-white">{selectedResume.file_name}</h3>
-                <p className="text-xs text-slate-400">
+                <h3 className="text-sm sm:text-base font-semibold text-zinc-100">{selectedResume.file_name}</h3>
+                <p className="text-xs text-zinc-400">
                   Uploaded {new Date(selectedResume.uploaded_at).toLocaleDateString()}
                 </p>
               </div>
               {selectedResume.is_active && (
-                <span className="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <span className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded text-xs font-mono font-medium bg-emerald-950/40 text-emerald-400 border border-emerald-800/40">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Primary Ground Truth</span>
                 </span>
@@ -217,15 +212,15 @@ export default function ResumesPage({ onResumeChanged }) {
             </div>
 
             {/* Extracted Skills */}
-            <div className="space-y-2">
-              <span className="text-xs font-semibold text-slate-300 block">
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium text-zinc-300 block">
                 Extracted Skills ({selectedResume.structured_data?.extracted_skills?.length || 0})
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {selectedResume.structured_data?.extracted_skills?.map((s, idx) => (
                   <span
                     key={idx}
-                    className="px-2.5 py-1 rounded-md text-xs font-mono bg-slate-800 text-slate-200 border border-slate-700"
+                    className="px-2 py-0.5 rounded text-xs font-mono bg-zinc-800 text-zinc-200 border border-zinc-700/50"
                   >
                     {s}
                   </span>
@@ -234,9 +229,9 @@ export default function ResumesPage({ onResumeChanged }) {
             </div>
 
             {/* Structured Sections Preview */}
-            <div className="space-y-3 pt-2">
-              <span className="text-xs font-semibold text-slate-300 block">Structured Resume Text Preview</span>
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
+            <div className="space-y-1.5 pt-1">
+              <span className="text-xs font-medium text-zinc-300 block">Structured Resume Text</span>
+              <div className="p-3.5 rounded-lg bg-zinc-950 border border-zinc-800 font-mono text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
                 {selectedResume.raw_text || 'No text extracted.'}
               </div>
             </div>
