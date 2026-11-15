@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # Local Ollama AI Settings
     OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
     OLLAMA_MODEL: str = "qwen2.5:1.5b"
-    OLLAMA_REQUEST_TIMEOUT_SECONDS: float = 60.0
+    OLLAMA_REQUEST_TIMEOUT_SECONDS: float = 120.0
 
     # Database & Storage Settings
     DATABASE_URL: str = "sqlite+aiosqlite:///storage/agent_kitkat.db"
