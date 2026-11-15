@@ -1,6 +1,6 @@
 """
 Agent KitKat - SQLAlchemy Database Models
-Phase 2: UserProfile and Resume models.
+Includes: UserProfile, Resume, Job, EligibilityResult, and MatchResult.
 """
 
 from datetime import datetime
@@ -165,3 +165,64 @@ class Job(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+class EligibilityResult(Base):
+    """
+    Deterministic Eligibility Verification Result.
+    Compares candidate profile against hard job requirements (degree, batch, CGPA, work mode).
+    Status values: PASS, FAIL, UNKNOWN.
+    """
+    __tablename__ = "eligibility_results"
+
+    id = Column(String(36), primary_key=True, index=True)  # UUID4
+    job_id = Column(String(36), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    overall_status = Column(String(20), nullable=False)  # PASS, FAIL, UNKNOWN
+    degree_status = Column(String(20), default="PASS")
+    degree_details = Column(String(500), default="")
+    graduation_status = Column(String(20), default="PASS")
+    graduation_details = Column(String(500), default="")
+    cgpa_status = Column(String(20), default="PASS")
+    cgpa_details = Column(String(500), default="")
+    location_status = Column(String(20), default="PASS")
+    location_details = Column(String(500), default="")
+    work_mode_status = Column(String(20), default="PASS")
+    work_mode_details = Column(String(500), default="")
+
+    rejection_reasons = Column(JSON, default=list)
+    unverified_requirements = Column(JSON, default=list)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MatchResult(Base):
+    """
+    Weighted Resume Matching Result.
+    Category Weights:
+    - Technical skills: 35%
+    - Education and graduation: 20%
+    - Projects and experience: 20%
+    - Role relevance: 15%
+    - Location: 10%
+    """
+    __tablename__ = "match_results"
+
+    id = Column(String(36), primary_key=True, index=True)  # UUID4
+    job_id = Column(String(36), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    resume_id = Column(String(36), nullable=True)
+
+    overall_score = Column(Float, nullable=False)  # 0.0 - 100.0
+    technical_skills_score = Column(Float, default=0.0)  # out of 35
+    education_score = Column(Float, default=0.0)         # out of 20
+    projects_score = Column(Float, default=0.0)          # out of 20
+    role_relevance_score = Column(Float, default=0.0)    # out of 15
+    location_score = Column(Float, default=0.0)          # out of 10
+
+    matching_skills = Column(JSON, default=list)
+    missing_skills = Column(JSON, default=list)
+    relevant_projects = Column(JSON, default=list)
+
+    recommendation = Column(String(50), nullable=False)
+    explanation = Column(Text, default="")
+
+    created_at = Column(DateTime, default=datetime.utcnow)

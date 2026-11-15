@@ -1,5 +1,5 @@
 from backend.database.db import engine, AsyncSessionLocal, Base, get_db, init_db
-from backend.database.models import UserProfile, Resume, Job
+from backend.database.models import UserProfile, Resume, Job, EligibilityResult, MatchResult
 
 __all__ = [
     "engine",
@@ -10,4 +10,6 @@ __all__ = [
     "UserProfile",
     "Resume",
     "Job",
+    "EligibilityResult",
+    "MatchResult",
 ]

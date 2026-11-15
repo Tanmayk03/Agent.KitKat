@@ -5,7 +5,7 @@
 | **Phase 1** | Local Backend & Ollama Integration | ✅ COMPLETED | 2026-11-15 |
 | **Phase 2** | Personal Profile & Resume Management | ✅ COMPLETED | 2026-11-15 |
 | **Phase 3** | Manual Job URL Analysis (Mode B) | ✅ COMPLETED | 2026-11-15 |
-| **Phase 4** | Deterministic Eligibility & Resume Matching Engine | ⏳ PENDING | - |
+| **Phase 4** | Eligibility & Resume Matching Engine | ✅ COMPLETED | 2026-11-15 |
 | **Phase 5** | Application Preparation & Cover Letter Drafting | ⏳ PENDING | - |
 | **Phase 6** | Playwright Browser Automation & Site Adapters | ⏳ PENDING | - |
 | **Phase 7** | Daily Autonomous Job Hunting & Discovery Scheduler | ⏳ PENDING | - |
@@ -70,3 +70,27 @@
   - `GET /api/jobs`: Status 200 OK (lists all opportunities)
   - `GET /api/jobs/{id}`: Status 200 OK (retrieves full job details)
 - **Tests Passed:** `tests/test_phase3.py` 100% green. Zero regressions across Phase 1 & 2 suites.
+
+---
+
+### Phase 4 Verification Summary
+- **Eligibility Verification Agent (`EligibilityAgent`):**
+  - Deterministic qualification checks: Graduation year, minimum CGPA, degree, location, and work mode.
+  - Strict classification: `PASS`, `FAIL`, or `UNKNOWN`.
+  - **Zero Assumptions Rule:** Unknown batch/requirements are strictly flagged as `UNKNOWN` (never passed blindly).
+  - **Hard Override Rule:** Mandatory failures strictly override high skill scores, setting recommendation to `INELIGIBLE`.
+- **Resume Matching Engine (`MatchingAgent`):**
+  - Transparent weighted formula:
+    - Technical skills: 35%
+    - Education and graduation: 20%
+    - Projects and experience: 20%
+    - Role relevance: 15%
+    - Location: 10%
+  - Outputs matching skills, missing skills, relevant projects, and detailed score explanations.
+- **Database Models (`backend/database/models.py`):**
+  - `EligibilityResult` and `MatchResult` tables created and linked via ForeignKey to `Job`.
+- **Endpoints Verified:**
+  - `POST /api/matching/evaluate/{job_id}`: Evaluates and persists eligibility and match results.
+  - `GET /api/matching/evaluation/{job_id}`: Fetches stored or computed evaluation breakdown.
+  - `GET /api/matching/rankings`: Retrieves ranked list of opportunities sorted by score.
+- **Tests Passed:** `tests/test_phase4.py` passed with 6 end-to-end integration scenarios. Regression suites for Phases 1, 2, and 3 100% green.

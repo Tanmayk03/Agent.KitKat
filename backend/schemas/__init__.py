@@ -22,6 +22,13 @@ from backend.schemas.job import (
     JobAnalysisResponse,
     JobListItem,
 )
+from backend.schemas.matching import (
+    RequirementCheck,
+    EligibilityResponse,
+    MatchCategoryScores,
+    MatchResponse,
+    JobRankingItem,
+)
 
 __all__ = [
     "HealthCheckResponse",
@@ -44,4 +51,9 @@ __all__ = [
     "ExtractedJobDetails",
     "JobAnalysisResponse",
     "JobListItem",
+    "RequirementCheck",
+    "EligibilityResponse",
+    "MatchCategoryScores",
+    "MatchResponse",
+    "JobRankingItem",
 ]
