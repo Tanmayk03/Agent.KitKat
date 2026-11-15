@@ -1,41 +1,58 @@
-# 🍫 Agent KitKat - Master All-in-One Launcher
-# Starts Ollama check, Backend server, and Frontend dev server in separate windows
+﻿# Agent KitKat - Master Launcher
 
-Write-Host "==================================================" -ForegroundColor Yellow
-Write-Host "🍫 AGENT KITKAT - AUTONOMOUS AI CAREER ASSISTANT" -ForegroundColor Yellow
-Write-Host "==================================================" -ForegroundColor Yellow
+$ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
 
-# 1. Verify Ollama
-Write-Host "[1/3] Checking Ollama daemon..." -ForegroundColor Cyan
+Write-Host "==============================================" -ForegroundColor Yellow
+Write-Host "       AGENT KITKAT - AI CAREER ASSISTANT" -ForegroundColor Yellow
+Write-Host "==============================================" -ForegroundColor Yellow
+
+# 1. Check Ollama
+Write-Host "[1/3] Checking Ollama..." -ForegroundColor Cyan
+
 try {
-    $res = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec 3 -ErrorAction Stop
-    Write-Host "✅ Ollama is online." -ForegroundColor Green
-} catch {
-    Write-Host "Starting Ollama serve..." -ForegroundColor Yellow
-    Start-Process "ollama" -ArgumentList "serve" -WindowStyle Minimized
-    Start-Sleep -Seconds 3
+    Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -TimeoutSec 5 | Out-Null
+    Write-Host "Ollama is online." -ForegroundColor Green
+}
+catch {
+    Write-Host "Starting Ollama..." -ForegroundColor Yellow
+    Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Minimized
+    Start-Sleep -Seconds 5
 }
 
-# 2. Launch Backend
-Write-Host "[2/3] Starting Backend Server (FastAPI on port 8000)..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-File", "$scriptDir\start_backend.ps1"
+# 2. Start Backend
+Write-Host "[2/3] Starting Backend..." -ForegroundColor Cyan
+
+if (-not (Test-Path "$scriptDir\start_backend.ps1")) {
+    throw "start_backend.ps1 was not found."
+}
+
+Start-Process powershell.exe -ArgumentList @(
+    "-NoExit",
+    "-ExecutionPolicy", "Bypass",
+    "-File", "$scriptDir\start_backend.ps1"
+)
 
 Start-Sleep -Seconds 2
 
-# 3. Launch Frontend
-Write-Host "[3/3] Starting Frontend Dev Server (Vite on port 5173)..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-File", "$scriptDir\start_frontend.ps1"
+# 3. Start Frontend
+Write-Host "[3/3] Starting Frontend..." -ForegroundColor Cyan
+
+if (-not (Test-Path "$scriptDir\start_frontend.ps1")) {
+    throw "start_frontend.ps1 was not found."
+}
+
+Start-Process powershell.exe -ArgumentList @(
+    "-NoExit",
+    "-ExecutionPolicy", "Bypass",
+    "-File", "$scriptDir\start_frontend.ps1"
+)
 
 Write-Host ""
-Write-Host "🎉 Agent KitKat services are running!" -ForegroundColor Green
-Write-Host "==================================================" -ForegroundColor Yellow
-Write-Host "💻 Local Web Dashboard:   http://localhost:5173" -ForegroundColor White
-Write-Host "📦 Production UI (FastAPI): http://127.0.0.1:8000/ui" -ForegroundColor White
-Write-Host "📖 Interactive API Docs:  http://127.0.0.1:8000/docs" -ForegroundColor White
-Write-Host "📱 iPhone PWA Access:     http://172.20.10.4:5173" -ForegroundColor Cyan
-Write-Host "==================================================" -ForegroundColor Yellow
-Write-Host "Press any key to exit this launcher window..."
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+Write-Host "Agent KitKat startup commands launched." -ForegroundColor Green
+Write-Host "Dashboard: http://localhost:5173" -ForegroundColor White
+Write-Host "API Docs:  http://127.0.0.1:8000/docs" -ForegroundColor White
+
+Read-Host "Press Enter to close this launcher"
