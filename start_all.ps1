@@ -1,4 +1,4 @@
-﻿# 🍫 Agent KitKat - Master All-in-One Launcher
+# 🍫 Agent KitKat - Master All-in-One Launcher
 # Starts Ollama check, Backend server, and Frontend dev server in separate windows
 
 Write-Host "==================================================" -ForegroundColor Yellow

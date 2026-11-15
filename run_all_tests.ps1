@@ -9,6 +9,17 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
 $python = "$scriptDir\venv\Scripts\python.exe"
 
+# 1. Verify Ollama is running
+Write-Host "Verifying local Ollama daemon (http://127.0.0.1:11434)..." -ForegroundColor Cyan
+try {
+    $res = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec 3 -ErrorAction Stop
+    Write-Host "✅ Ollama is online." -ForegroundColor Green
+} catch {
+    Write-Host "Ollama not running. Starting background Ollama daemon..." -ForegroundColor Yellow
+    Start-Process "ollama" -ArgumentList "serve" -WindowStyle Minimized
+    Start-Sleep -Seconds 3
+}
+
 $testFiles = @(
     "tests\test_phase1.py",
     "tests\test_phase2.py",

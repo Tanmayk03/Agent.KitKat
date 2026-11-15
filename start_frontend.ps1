@@ -1,4 +1,4 @@
-﻿# 🍫 Agent KitKat - Frontend Launcher
+# 🍫 Agent KitKat - Frontend Launcher
 # Launches Vite development server on port 5173 with 0.0.0.0 host binding
 
 Write-Host "==================================================" -ForegroundColor Yellow

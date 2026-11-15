@@ -1,4 +1,4 @@
-﻿# 🍫 Agent KitKat - Backend Launcher
+# 🍫 Agent KitKat - Backend Launcher
 # Launches the FastAPI backend on port 8000
 
 Write-Host "==================================================" -ForegroundColor Yellow
