@@ -10,7 +10,7 @@ from datetime import datetime
 
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.config import get_settings
@@ -117,7 +117,26 @@ app.include_router(network_router)
 frontend_dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
 if os.path.exists(frontend_dist_dir):
     app.mount("/ui", StaticFiles(directory=frontend_dist_dir, html=True), name="ui")
-    logger.info("Mounted production frontend UI at /ui (dist: %s)", frontend_dist_dir)
+    assets_dir = os.path.join(frontend_dist_dir, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    logger.info("Mounted production frontend UI at /ui and /assets (dist: %s)", frontend_dist_dir)
+
+
+@app.get("/manifest.json", include_in_schema=False)
+async def get_root_manifest():
+    manifest_path = os.path.join(frontend_dist_dir, "manifest.json")
+    if os.path.exists(manifest_path):
+        return FileResponse(manifest_path, media_type="application/manifest+json")
+    return JSONResponse(status_code=404, content={"detail": "Manifest not found"})
+
+
+@app.get("/sw.js", include_in_schema=False)
+async def get_root_sw():
+    sw_path = os.path.join(frontend_dist_dir, "sw.js")
+    if os.path.exists(sw_path):
+        return FileResponse(sw_path, media_type="application/javascript")
+    return JSONResponse(status_code=404, content={"detail": "Service worker not found"})
 
 
 @app.get("/", tags=["General"])
