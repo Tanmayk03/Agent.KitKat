@@ -1,4 +1,4 @@
-﻿# 🍫 Agent KitKat - Master Test Suite Runner
+# 🍫 Agent KitKat - Master Test Suite Runner
 # Runs every phase test suite sequentially and reports comprehensive results
 
 Write-Host "==================================================" -ForegroundColor Yellow
