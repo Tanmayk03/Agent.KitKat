@@ -117,6 +117,12 @@ class ResumeService:
         return result.scalars().first()
 
     @staticmethod
+    async def get_active_resume(session: AsyncSession) -> Optional[Resume]:
+        """Get the currently active resume."""
+        result = await session.execute(select(Resume).where(Resume.is_active == True))
+        return result.scalars().first()
+
+    @staticmethod
     async def set_active_resume(session: AsyncSession, resume_id: str) -> Tuple[Resume, UserProfile]:
         """Set a specific resume as active and deactivate all others."""
         target_resume = await ResumeService.get_resume(session, resume_id)

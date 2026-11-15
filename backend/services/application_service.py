@@ -18,7 +18,8 @@ from backend.database.models import (
     ApplicationDraft,
     ApprovalRequest,
     Application,
-    MatchResult
+    MatchResult,
+    EligibilityResult
 )
 from backend.schemas.application import (
     ApplicationDraftResponse,

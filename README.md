@@ -1,121 +1,193 @@
 # 🍫 Agent KitKat – Autonomous AI Career Assistant
-> **Tagline:** Your little buddy for finding your next opportunity.
-
-Agent KitKat is a personal, fully autonomous AI career assistant designed to discover jobs, evaluate eligibility, compare opportunities against your verified resume, draft applications, and automate form submissions under human supervision.
-
----
-
-## ⚡ Key Highlights
-- **100% Free & Local AI:** Powered by local [Ollama](https://ollama.ai) with `qwen2.5:1.5b`. Strictly ₹0 operating budget, zero external AI API costs.
-- **Privacy First:** Resumes and personal profile data never leave your local machine.
-- **Dual Operating Modes:**
-  - **Mode A (Autonomous Daily Job Hunting):** Discovers jobs, verifies eligibility, scores resumes, and prepares applications.
-  - **Mode B (Manual Job URL Analysis):** Instant one-click analysis of pasted job links.
-- **Human-in-the-Loop:** Strict authorization policies (Manual Approval, Pre-authorized, Prepare Only).
+> **Tagline:** Your little buddy for finding your next opportunity.  
+> **Repository:** `Agent_KitKat` | **Budget:** Strictly ₹0 (Zero Paid APIs) | **Local AI:** Ollama `qwen2.5:1.5b`
 
 ---
 
-## 🏗️ Project Architecture Overview
+## 📖 Executive Overview
+
+**Agent KitKat** is a fully functional personal AI career assistant and autonomous job-hunting agent. Operating under strict human-in-the-loop policies with a strict ₹0 recurring budget, Agent KitKat runs 100% locally on your machine—protecting your privacy, your credentials, and your ground-truth personal profile.
+
+It supports two primary operating modes:
+- **Mode A (Autonomous Daily Job Hunting):** Scheduled multi-source opportunity discovery across Remotive, Jobicy, and Curated Tech Feeds, duplicate suppression, qualification verification, weighted resume matching, and automated application preparation.
+- **Mode B (Manual Job URL Analysis):** Paste any job listing link (LinkedIn, Naukri, or career portal), raw description text, or upload a JD PDF/DOCX to extract structured requirements, verify eligibility, calculate resume match scores, and generate tailored cover letters instantly.
+
+---
+
+## ✨ Key Capabilities & System Features
+
+| Feature | Description |
+|---|---|
+| **Zero-Budget Local AI** | Powered entirely by local [Ollama](https://ollama.ai) running `qwen2.5:1.5b` at `http://127.0.0.1:11434`. Zero OpenAI/Claude API costs. |
+| **Ground Truth Profile** | Candidate profile (Harshit Sharma, B.Tech CS & DS, SRM University Delhi NCR, CGPA 8.44, Batch 2027). Skills remain unverified until verified by uploaded resume. Zero hallucinations. |
+| **Deterministic Eligibility Engine** | Classifies degree, graduation batch, CGPA, work mode, and location strictly as `PASS`, `FAIL`, or `UNKNOWN`. Unknowns never pass; hard failures strictly override match scores. |
+| **5-Factor Weighted Resume Matcher** | Transparent breakdown: Skills (35%), Education & Graduation (20%), Projects & Experience (20%), Role Relevance (15%), Location (10%). |
+| **Tailored Application Preparation** | Synthesizes customized cover letters grounded in resume facts, formulates ATS screening answers, and maps standard form inputs. |
+| **3 Submission Policies** | **Policy A:** Manual Approval (queue for candidate sign-off). **Policy B:** Pre-authorized (submits if score ≥ 75%, PASS, zero unfilled required fields). **Policy C:** Prepare Only. |
+| **Playwright Browser Automation** | Auto-fills contact info, education, work auth, uploads active PDF resume, pastes cover letter, and verifies positive website receipt. |
+| **Zero-Bypass Safety Compliance** | Immediately pauses upon encountering CAPTCHAs, Cloudflare Turnstiles, login walls, or sensitive legal declarations. Never attempts illegal bypass. |
+| **Global Emergency Stop** | Instant kill-switch (`POST /api/browser/emergency-stop`) available in the dashboard navbar to cancel browser sessions instantly. |
+| **Audited Daily Reporting** | Aggregates daily discovery and application counts directly from SQLite database tables (no fake statistics). |
+| **Modern React 19 Dashboard** | Single Page Application styled with Tailwind CSS v4 and chocolate/amber dark theme. |
+| **iPhone PWA & LAN Remote Access** | Installable Progressive Web Application with offline caching, notch/safe-area insets, and local Wi-Fi remote access. |
+
+---
+
+## 🏗️ Architecture & Project Structure
 
 ```
 Agent_KitKat/
 ├── backend/
-│   ├── main.py                     # FastAPI application entrypoint & API routes
+│   ├── main.py                     # FastAPI application entrypoint & static UI mount
 │   ├── config.py                   # Centralized configuration (pydantic-settings)
 │   ├── requirements.txt            # Python dependencies
 │   ├── database/                   # SQLite database & SQLAlchemy ORM
-│   │   ├── db.py                   # Async database engine & session dependency
-│   │   └── models.py               # UserProfile and Resume tables
-│   ├── routers/                    # API route controllers
-│   │   ├── profile_router.py       # Profile CRUD endpoints
-│   │   ├── resume_router.py        # Resume upload, parse, list, and activate
+│   │   ├── db.py                   # Async database engine & auto-migration
+│   │   └── models.py               # UserProfile, Resume, Job, Drafts, Approvals, Reports
+│   ├── routers/                    # API route controllers (30+ endpoints)
+│   │   ├── profile_router.py       # Candidate profile CRUD
+│   │   ├── resume_router.py        # PDF/DOCX resume upload, parse, and activate
 │   │   ├── job_router.py           # Mode B job analysis (URL, text, file)
-│   │   └── matching_router.py      # Eligibility verification & resume matching
-│   ├── schemas/                    # Pydantic data schemas
-│   │   ├── health.py               # Health & Ollama connection models
-│   │   ├── ai.py                   # AI prompt & generation models
-│   │   ├── profile.py              # Personal profile & preferences models
-│   │   ├── resume.py               # Resume metadata & extracted sections models
-│   │   ├── job.py                  # Job analysis request & structured details models
-│   │   └── matching.py             # Match score breakdown & eligibility checks
+│   │   ├── matching_router.py      # Eligibility verification & resume matching
+│   │   ├── application_router.py   # Draft preparation & human approval queue
+│   │   ├── browser_router.py       # Playwright execution & emergency stop
+│   │   ├── discovery_router.py     # Autonomous discovery & APScheduler controls
+│   │   ├── reporting_router.py     # Daily activity report generation
+│   │   └── network_router.py       # LAN IP discovery for iPhone remote access
+│   ├── schemas/                    # Pydantic validation schemas
 │   ├── services/                   # Core business logic services
-│   │   ├── ollama_service.py       # Async Ollama client with retry & timeout handling
-│   │   ├── profile_service.py      # Profile retrieval & update logic
-│   │   ├── resume_service.py       # Resume persistence & verification sync
-│   │   ├── job_service.py          # Job URL scraping & text processing
-│   │   └── matching_service.py     # Weighted matching & ranking calculations
+│   │   ├── ollama_service.py       # Local Ollama AI client (with proxy-bypass)
+│   │   ├── profile_service.py      # Profile management & ground-truth defaults
+│   │   ├── resume_service.py       # Resume persistence & active switcher
+│   │   ├── job_service.py          # Opportunity ingestion & feature extraction
+│   │   ├── matching_service.py     # Weighted matching & ranking calculations
+│   │   ├── application_service.py  # Cover letter synthesis & approval workflow
+│   │   ├── browser_service.py      # Playwright browser automation coordinator
+│   │   ├── discovery_service.py    # Multi-source job discovery pipeline
+│   │   └── reporting_service.py    # Audited database report compiler
 │   ├── agents/                     # Specialized AI agents
-│   │   ├── job_reader.py           # Job Description Reader Agent (Qwen2.5 + regex)
+│   │   ├── job_reader.py           # Job Description Reader Agent
 │   │   ├── eligibility_agent.py    # Deterministic Eligibility Verification Agent
-│   │   └── matching_agent.py       # 5-factor weighted resume matching engine
-│   └── tools/                      # Reusable tool modules
-│       ├── resume_parser.py        # PDF/DOCX text & skill extraction engine
-│       └── url_reader.py           # Web scraper with bot-wall protection detection
-├── storage/                        # Secure local storage (resumes, drafts, logs)
+│   │   ├── matching_agent.py       # 5-factor weighted resume matching engine
+│   │   ├── application_agent.py    # Tailored Application Preparation Agent
+│   │   └── browser_agent.py        # Playwright Browser Automation Agent
+│   ├── scheduler/                  # APScheduler daily autonomous cron runner
+│   └── tools/                      # Reusable toolkits (url_reader, duplicate_checker)
+├── frontend/                       # Modern React 19 SPA
+│   ├── index.html                  # Apple PWA meta tags & viewport insets
+│   ├── package.json                # React 19, Tailwind CSS v4, Lucide Icons, Vite 8
+│   ├── public/                     # PWA manifest.json & sw.js service worker
+│   ├── dist/                       # Production compiled static bundle
+│   └── src/
+│       ├── services/api.js         # Unified client API adapter
+│       ├── components/Navbar.jsx   # Header with AI status badge & Emergency Stop
+│       └── pages/                  # 9 specialized application views
+│           ├── DashboardPage.jsx
+│           ├── AnalyzeJobPage.jsx
+│           ├── OpportunitiesPage.jsx
+│           ├── ApprovalsPage.jsx
+│           ├── TrackerPage.jsx
+│           ├── ProfilePage.jsx
+│           ├── ResumesPage.jsx
+│           ├── DailyReportsPage.jsx
+│           └── SettingsPage.jsx
+├── storage/                        # Persistent local directory
 │   ├── agent_kitkat.db             # Local SQLite database
 │   ├── resumes/                    # Stored resume documents
-│   ├── applications/
-│   └── logs/
-├── tests/                          # Automated verification tests
-│   ├── test_phase1.py              # In-process ASGI integration tests
-│   ├── test_phase2.py              # Profile & resume parser integration tests
-│   ├── test_phase3.py              # Mode B job analysis tests
-│   ├── test_phase4.py              # Eligibility & matching engine tests
-│   └── test_live_server.py         # Live TCP socket HTTP server tests
-├── .env.example                    # Environment variable template
-├── .gitignore                      # Git ignore patterns
-└── README.md                       # Master documentation
+│   └── screenshots/                # Pre/post submission browser screenshots
+├── tests/                          # 10 comprehensive test suites (Phases 1-10)
+├── start_all.ps1                   # Master one-click PowerShell launcher
+├── start_backend.ps1               # FastAPI backend launcher on port 8000
+├── start_frontend.ps1              # Vite frontend dev server launcher on port 5173
+├── run_all_tests.ps1               # Master test suite runner
+└── PROGRESS.md                     # Detailed phase-by-phase development log
 ```
 
 ---
 
-## 🚀 Quickstart Guide (Phase 1)
+## 🚀 Quickstart Guide
 
 ### 1. Prerequisites
-- **Python:** 3.10+ (Verified on Python 3.13.7)
-- **Ollama:** Installed and running locally
-- **Ollama Model:** `qwen2.5:1.5b`
+- **Windows Laptop** (8 GB RAM, no NVIDIA GPU needed)
+- **Python 3.10+** (Developed and verified on Python 3.13.7)
+- **Node.js v18+** (Verified on Node v22.16.0)
+- **Local Ollama Daemon:** Installed and running with `qwen2.5:1.5b`
   ```powershell
-  ollama pull qwen2.5:1.5b
+  ollama run qwen2.5:1.5b
   ```
 
-### 2. Setup Virtual Environment
+### 2. Setup Environment
 ```powershell
-# From project root: f:\Agent_KitKat
+# From project directory: F:\Agent_KitKat
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r backend\requirements.txt
+playwright install chromium
 ```
 
-### 3. Start the Backend Server
+### 3. Launch Agent KitKat
+
+You can launch both the backend and frontend with a single command:
 ```powershell
-.\venv\Scripts\uvicorn.exe backend.main:app --host 127.0.0.1 --port 8000 --reload
+.\start_all.ps1
 ```
 
-The API will be available at:
+Or run individual services:
+- **Backend Server:**
+  ```powershell
+  .\start_backend.ps1
+  ```
+- **Frontend Dev Server:**
+  ```powershell
+  .\start_frontend.ps1
+  ```
+
+### 4. Access URLs
+- **Web Dashboard (Dev Server):** [http://localhost:5173](http://localhost:5173)
+- **Production UI (FastAPI Mounted):** [http://127.0.0.1:8000/ui](http://127.0.0.1:8000/ui)
 - **Interactive Swagger Docs:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **Alternative ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
-- **Health Check Endpoint:** [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
-- **AI Test Endpoint:** `POST http://127.0.0.1:8000/api/ai/test`
+- **System Health Endpoint:** [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
+- **iPhone PWA (Local Wi-Fi):** `http://<your-lan-ip>:5173` (e.g. `http://172.20.10.4:5173`)
 
 ---
 
-## 🧪 Testing
+## 📱 iPhone PWA & Remote Access Setup
 
-To run the automated test suites:
+1. Connect your iPhone to the same local Wi-Fi network as your laptop.
+2. In the Agent KitKat dashboard, navigate to **Settings** and view the **iPhone & Mobile Remote Access** card.
+3. Open **Safari** on your iPhone and enter the displayed URL (e.g. `http://172.20.10.4:5173`).
+4. Tap the **Share** button in Safari (box with upward arrow) and select **Add to Home Screen**.
+5. Agent KitKat launches in standalone full-screen mode with native iOS gestures, bottom navigation, and safe-area notch adaptation.
+
+---
+
+## 🧪 Verification & Testing
+
+Every capability has been thoroughly tested with dedicated, automated end-to-end integration suites. To execute all 10 test suites:
+
 ```powershell
-# Phase 1: In-process ASGI tests (Health & Ollama)
-.\venv\Scripts\python.exe tests\test_phase1.py
-
-# Phase 2: Profile & Resume Parser integration tests
-.\venv\Scripts\python.exe tests\test_phase2.py
-
-# Phase 3: Mode B Job URL & Text Analysis tests
-.\venv\Scripts\python.exe tests\test_phase3.py
-
-# Phase 4: Deterministic Eligibility & Weighted Matching tests
-.\venv\Scripts\python.exe tests\test_phase4.py
-
-# Live TCP HTTP server test
-.\venv\Scripts\python.exe tests\test_live_server.py
+.\run_all_tests.ps1
 ```
+
+### Test Suite Catalog:
+| Test Suite | Purpose & Coverage | Status |
+|---|---|---|
+| `test_phase1.py` | Local Ollama AI integration & health check | ✅ 100% PASS |
+| `test_phase2.py` | Profile CRUD & PDF/DOCX resume skill verification | ✅ 100% PASS |
+| `test_phase3.py` | Mode B Manual Job Analysis (URL scraping, text parsing) | ✅ 100% PASS |
+| `test_phase4.py` | Deterministic eligibility & 5-factor weighted matching | ✅ 100% PASS |
+| `test_phase5.py` | Cover letter drafting & 3 submission policy workflows | ✅ 100% PASS |
+| `test_phase6.py` | Playwright browser form autofill, upload & zero-bypass | ✅ 100% PASS |
+| `test_phase7.py` | Multi-source discovery, 100% duplicate suppression & scheduler | ✅ 100% PASS |
+| `test_phase8.py` | React 19 frontend bundle & API integration | ✅ 100% PASS |
+| `test_phase9.py` | iPhone PWA manifest, service worker & LAN discovery | ✅ 100% PASS |
+| `test_master_e2e.py` | **Master 11-Stage End-to-End Simulation** | ✅ 100% PASS |
+
+---
+
+## 🛡️ Ethics, Privacy & Compliance Commitments
+
+1. **Zero Hallucination:** Candidate qualifications, degrees, skills, and projects are strictly sourced from verified profile data and uploaded resumes.
+2. **Zero Bypass:** Anti-bot challenges (CAPTCHA, Turnstile) and login walls trigger safe pauses for human completion.
+3. **Zero Financial Cost:** Purely local AI model inference ensures zero monthly recurring bills.
+4. **Human Autonomy:** Submissions are governed strictly by the selected policy, backed by the global Emergency Stop kill-switch.

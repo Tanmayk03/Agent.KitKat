@@ -3,6 +3,7 @@ Agent KitKat - Autonomous AI Career Assistant
 Main FastAPI Application (Backend Entry Point)
 """
 
+import os
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -10,6 +11,7 @@ from datetime import datetime
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.config import get_settings
 from backend.database.db import init_db
@@ -111,6 +113,12 @@ app.include_router(scheduler_router)
 app.include_router(reporting_router)
 app.include_router(network_router)
 
+# Mount Frontend Built UI (React PWA) if available
+frontend_dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+if os.path.exists(frontend_dist_dir):
+    app.mount("/ui", StaticFiles(directory=frontend_dist_dir, html=True), name="ui")
+    logger.info("Mounted production frontend UI at /ui (dist: %s)", frontend_dist_dir)
+
 
 @app.get("/", tags=["General"])
 async def root():
@@ -121,6 +129,7 @@ async def root():
         "tagline": settings.APP_TAGLINE,
         "version": settings.APP_VERSION,
         "status": "online",
+        "ui": "/ui",
         "docs": "/docs",
         "health": "/api/health"
     }
