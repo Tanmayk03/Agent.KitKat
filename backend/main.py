@@ -12,6 +12,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.config import get_settings
+from backend.database.db import init_db
+from backend.routers.profile_router import router as profile_router
+from backend.routers.resume_router import router as resume_router
 from backend.schemas.health import HealthCheckResponse
 from backend.schemas.ai import AITestRequest, AITestResponse
 from backend.services.ollama_service import ollama_service
@@ -54,6 +57,11 @@ async def lifespan(app: FastAPI):
             settings.OLLAMA_BASE_URL
         )
 
+    # Initialize local SQLite database
+    logger.info("Initializing database at %s...", settings.DATABASE_URL)
+    await init_db()
+    logger.info("✅ Database tables initialized successfully.")
+
     yield
 
     logger.info("Shutting down %s...", settings.APP_NAME)
@@ -82,6 +90,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Register API Routers
+app.include_router(profile_router)
+app.include_router(resume_router)
 
 
 @app.get("/", tags=["General"])

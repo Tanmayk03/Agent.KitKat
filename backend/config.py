@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "qwen2.5:1.5b"
     OLLAMA_REQUEST_TIMEOUT_SECONDS: float = 60.0
 
+    # Database & Storage Settings
+    DATABASE_URL: str = "sqlite+aiosqlite:///storage/agent_kitkat.db"
+    STORAGE_DIR: str = "storage"
+    RESUMES_DIR: str = "storage/resumes"
+    APPLICATIONS_DIR: str = "storage/applications"
+    LOGS_DIR: str = "storage/logs"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

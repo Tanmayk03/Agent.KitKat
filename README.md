@@ -23,17 +23,31 @@ Agent_KitKat/
 │   ├── main.py                     # FastAPI application entrypoint & API routes
 │   ├── config.py                   # Centralized configuration (pydantic-settings)
 │   ├── requirements.txt            # Python dependencies
+│   ├── database/                   # SQLite database & SQLAlchemy ORM
+│   │   ├── db.py                   # Async database engine & session dependency
+│   │   └── models.py               # UserProfile and Resume tables
+│   ├── routers/                    # API route controllers
+│   │   ├── profile_router.py       # Profile CRUD endpoints
+│   │   └── resume_router.py        # Resume upload, parse, list, and activate
 │   ├── schemas/                    # Pydantic data schemas
 │   │   ├── health.py               # Health & Ollama connection models
-│   │   └── ai.py                   # AI prompt & generation models
-│   └── services/                   # Core backend services
-│       └── ollama_service.py       # Async Ollama client with retry & timeout handling
+│   │   ├── ai.py                   # AI prompt & generation models
+│   │   ├── profile.py              # Personal profile & preferences models
+│   │   └── resume.py               # Resume metadata & extracted sections models
+│   ├── services/                   # Core business logic services
+│   │   ├── ollama_service.py       # Async Ollama client with retry & timeout handling
+│   │   ├── profile_service.py      # Profile retrieval & update logic
+│   │   └── resume_service.py       # Resume persistence & verification sync
+│   └── tools/                      # Reusable tool modules
+│       └── resume_parser.py        # PDF/DOCX text & skill extraction engine
 ├── storage/                        # Secure local storage (resumes, drafts, logs)
-│   ├── resumes/
+│   ├── agent_kitkat.db             # Local SQLite database
+│   ├── resumes/                    # Stored resume documents
 │   ├── applications/
 │   └── logs/
 ├── tests/                          # Automated verification tests
 │   ├── test_phase1.py              # In-process ASGI integration tests
+│   ├── test_phase2.py              # Profile & resume parser integration tests
 │   └── test_live_server.py         # Live TCP socket HTTP server tests
 ├── .env.example                    # Environment variable template
 ├── .gitignore                      # Git ignore patterns
@@ -73,12 +87,15 @@ The API will be available at:
 
 ---
 
-## 🧪 Testing Phase 1
+## 🧪 Testing
 
 To run the automated test suites:
 ```powershell
-# In-process ASGI tests
+# Phase 1: In-process ASGI tests (Health & Ollama)
 .\venv\Scripts\python.exe tests\test_phase1.py
+
+# Phase 2: Profile & Resume Parser integration tests
+.\venv\Scripts\python.exe tests\test_phase2.py
 
 # Live TCP HTTP server test
 .\venv\Scripts\python.exe tests\test_live_server.py
