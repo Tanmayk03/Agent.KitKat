@@ -3,7 +3,7 @@ Agent KitKat - Profile Schemas
 Pydantic schemas for personal career profile, education, skills, and preferences.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -12,7 +12,7 @@ class EducationDetails(BaseModel):
     degree: str = Field(default="B.Tech", description="Degree name")
     specialization: str = Field(default="Computer Science and Data Science", description="Specialization/Major")
     college: str = Field(default="SRM University, Delhi NCR", description="College/University name")
-    cgpa: float = Field(default=8.44, ge=0.0, le=10.0, description="CGPA out of 10")
+    cgpa: float = Field(default=8.53, ge=0.0, le=10.0, description="CGPA out of 10")
     graduation: str = Field(default="May 2027", description="Graduation month and year")
     graduation_year: int = Field(default=2027, ge=2020, le=2035, description="Year of graduation")
 
@@ -35,7 +35,7 @@ class WorkExperienceItem(BaseModel):
 
 class CertificationItem(BaseModel):
     name: str
-    issuer: str
+    issuer: str = "Industry"
     issue_date: Optional[str] = None
     credential_url: Optional[str] = None
 
@@ -67,9 +67,9 @@ class UserProfileUpdate(BaseModel):
     work_mode: Optional[str] = None  # "Any", "Remote", "Hybrid", "Onsite"
     verified_skills: Optional[List[str]] = None
     unverified_skills: Optional[List[str]] = None
-    projects: Optional[List[ProjectItem]] = None
-    work_experience: Optional[List[WorkExperienceItem]] = None
-    certifications: Optional[List[CertificationItem]] = None
+    projects: Optional[List[Union[ProjectItem, Dict[str, Any], str]]] = None
+    work_experience: Optional[List[Union[WorkExperienceItem, Dict[str, Any], str]]] = None
+    certifications: Optional[List[Union[CertificationItem, Dict[str, Any], str]]] = None
     application_preferences: Optional[ApplicationPreferences] = None
     active_resume_id: Optional[str] = None
 
@@ -90,9 +90,9 @@ class UserProfileResponse(BaseModel):
     work_mode: str
     verified_skills: List[str]
     unverified_skills: List[str]
-    projects: List[ProjectItem]
-    work_experience: List[WorkExperienceItem]
-    certifications: List[CertificationItem]
+    projects: List[Union[ProjectItem, Dict[str, Any], str]] = Field(default_factory=list)
+    work_experience: List[Union[WorkExperienceItem, Dict[str, Any], str]] = Field(default_factory=list)
+    certifications: List[Union[CertificationItem, Dict[str, Any], str]] = Field(default_factory=list)
     application_preferences: ApplicationPreferences
     active_resume_id: Optional[str] = None
     created_at: datetime

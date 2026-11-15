@@ -32,18 +32,18 @@ class ProfileService:
         if profile is None:
             logger.info("Initializing default user profile...")
             profile = UserProfile(
-                full_name="",
-                email="",
-                phone="",
-                location="India",
-                linkedin_url="",
-                github_url="",
-                portfolio_url="",
+                full_name="Tanmay Kapoor",
+                email="tanmaykapoor003@gmail.com",
+                phone="+91-7905170353",
+                location="Delhi NCR, India",
+                linkedin_url="https://linkedin.com/in/tanmay-kapoor",
+                github_url="https://github.com/tanmayk03",
+                portfolio_url="https://tanmayk.tech",
                 education={
                     "degree": "B.Tech",
-                    "specialization": "Computer Science and Data Science",
+                    "specialization": "Computer Science (Data Science)",
                     "college": "SRM University, Delhi NCR",
-                    "cgpa": 8.44,
+                    "cgpa": 8.53,
                     "graduation": "May 2027",
                     "graduation_year": 2027
                 },
@@ -51,9 +51,10 @@ class ProfileService:
                     "Software Engineer Intern",
                     "Software Developer Intern",
                     "Frontend Developer Intern",
+                    "Full Stack Developer Intern",
+                    "Backend Developer Intern",
                     "AI/ML Intern",
-                    "Data Engineer Intern",
-                    "Full Stack Developer Intern"
+                    "Data Engineer Intern"
                 ],
                 preferred_locations=[
                     "India",
@@ -67,11 +68,21 @@ class ProfileService:
                 verified_skills=[],
                 unverified_skills=[
                     "Python",
-                    "React",
-                    "Java",
                     "JavaScript",
+                    "Java",
+                    "C++",
+                    "SQL",
+                    "React.js",
+                    "React",
+                    "Redux",
                     "Node.js",
-                    "Web development"
+                    "Express.js",
+                    "FastAPI",
+                    "MongoDB",
+                    "MySQL",
+                    "Docker",
+                    "Microsoft Azure",
+                    "Tailwind CSS"
                 ],
                 projects=[],
                 work_experience=[],
