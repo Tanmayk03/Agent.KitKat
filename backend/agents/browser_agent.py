@@ -124,10 +124,8 @@ class BrowserAutomationAgent:
 
         try:
             playwright_obj = await async_playwright().start()
-            browser = await playwright_obj.chromium.launch(
-                headless=is_headless,
-                args=["--disable-blink-features=AutomationControlled"]
-            )
+            # No anti-detection flags: the agent never tries to hide that it is automated.
+            browser = await playwright_obj.chromium.launch(headless=is_headless)
 
             # Register active session for emergency stop
             async with self._lock:
@@ -254,6 +252,8 @@ class BrowserAutomationAgent:
                     logs=logs
                 )
 
+            pre_click_text = await self._visible_text(page)
+            pre_click_url = page.url
             log("Submitting application...")
             try:
                 await submit_button.click()
@@ -277,7 +277,7 @@ class BrowserAutomationAgent:
             await page.screenshot(path=post_submit_path, full_page=True)
             log(f"Post-submission screenshot saved to {post_submit_path}")
 
-            submission_confirmed, confirm_text = await self._verify_submission_confirmation(page)
+            submission_confirmed, confirm_text = await self._verify_submission_confirmation(page, pre_click_text, pre_click_url)
             if submission_confirmed:
                 log(f"🎉 Submission CONFIRMED by website: '{confirm_text}'")
                 return BrowserRunResult(
@@ -300,9 +300,12 @@ class BrowserAutomationAgent:
                     company_name=company_name,
                     job_title=job_title,
                     application_url=application_url,
-                    status="submission_uncertain",
+                    status="submission_unverified",
                     requires_human_intervention=True,
-                    intervention_reason="Application was sent but website did not show a clear confirmation message. Please verify.",
+                    intervention_reason=(
+                        "The submit button was clicked, but no new confirmation message appeared. "
+                        "Check your email or the site before assuming it was received."
+                    ),
                     pre_submit_screenshot=pre_submit_path,
                     post_submit_screenshot=post_submit_path,
                     logs=logs
@@ -464,36 +467,14 @@ class BrowserAutomationAgent:
                         cur_val = await loc.input_value()
                         if not cur_val:
                             await loc.fill(val)
-                            log(f"Filled field '{field_key}' -> {val}")
+                            log(f"Filled field '{field_key}'")  # value not logged (personal data)
                             filled_count += 1
                             break
                 except Exception:
                     pass
 
-        # Handle Radio Buttons / Selects for Work Authorization & Sponsorship
-        try:
-            # Authorized to work in India -> Yes
-            auth_radios = page.locator("input[type='radio'][name*='authoriz' i], input[type='radio'][name*='eligible' i]")
-            if await auth_radios.count() > 0:
-                yes_radio = page.locator("input[type='radio'][value*='yes' i], input[type='radio'][id*='yes' i]").first
-                if await yes_radio.count() > 0:
-                    await yes_radio.check()
-                    log("Selected 'Yes' for work authorization.")
-                    filled_count += 1
-        except Exception:
-            pass
-
-        try:
-            # Sponsorship required -> No
-            spons_radios = page.locator("input[type='radio'][name*='sponsor' i]")
-            if await spons_radios.count() > 0:
-                no_radio = page.locator("input[type='radio'][name*='sponsor' i][value*='no' i]").first
-                if await no_radio.count() > 0:
-                    await no_radio.check()
-                    log("Selected 'No' for visa sponsorship requirement.")
-                    filled_count += 1
-        except Exception:
-            pass
+        # Work authorisation, sponsorship, demographic and legal questions are NEVER answered
+        # automatically. They remain unfilled and are reported for the human to answer.
 
         # Fill Tailored Cover Letter
         if cover_letter:
@@ -502,7 +483,8 @@ class BrowserAutomationAgent:
                 "textarea[id*='cover' i]",
                 "textarea[placeholder*='cover letter' i]",
                 "textarea[name*='letter' i]",
-                "textarea"  # fallback to first textarea on page
+                "textarea[aria-label*='cover letter' i]",
+                # no generic "first textarea" fallback: that pasted the letter into unrelated questions
             ]
             for sel in cover_selectors:
                 try:
@@ -519,7 +501,7 @@ class BrowserAutomationAgent:
 
         # Fill Custom Screening Answers (e.g. why_join, relevant_project, availability, salary)
         for q_key, ans in custom_answers.items():
-            if not ans:
+            if not ans or ans == "NEEDS_YOUR_INPUT" or not re.fullmatch(r"[A-Za-z0-9_]+", str(q_key)):
                 continue
             answer_selectors = [
                 f"textarea[name*='{q_key}' i]",
@@ -617,29 +599,36 @@ class BrowserAutomationAgent:
 
         return None
 
-    async def _verify_submission_confirmation(self, page: Page) -> Tuple[bool, str]:
-        """Verify if the page displays clear evidence of successful submission."""
-        success_phrases = [
-            "thank you for applying",
-            "application submitted",
-            "application received",
-            "we have received your application",
-            "your application has been sent",
-            "successfully submitted",
-            "application complete",
-            "thanks for your interest"
-        ]
-
+    @staticmethod
+    async def _visible_text(page: Page) -> str:
         try:
-            content = await page.content()
-            content_lower = content.lower()
-
-            for phrase in success_phrases:
-                if phrase in content_lower:
-                    return True, phrase
+            return (await page.locator("body").inner_text(timeout=5000)).lower()
         except Exception:
-            pass
+            return ""
 
+    SUCCESS_PHRASES = [
+        "thank you for applying",
+        "thanks for applying",
+        "application submitted",
+        "application received",
+        "application has been received",
+        "we have received your application",
+        "we've received your application",
+        "your application has been sent",
+        "your application has been submitted",
+        "successfully submitted",
+        "application complete",
+    ]
+
+    async def _verify_submission_confirmation(self, page: Page, pre_text: str = "", pre_url: str = "") -> Tuple[bool, str]:
+        """
+        Confirmed only if a success phrase is VISIBLE after the click and was NOT visible before it.
+        (Many forms show "thanks for your interest" before submission; raw HTML and scripts are ignored.)
+        """
+        post_text = await self._visible_text(page)
+        for phrase in self.SUCCESS_PHRASES:
+            if phrase in post_text and phrase not in pre_text:
+                return True, phrase
         return False, ""
 
 

@@ -8,7 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,6 +27,7 @@ from backend.routers.network_router import router as network_router
 from backend.schemas.health import HealthCheckResponse
 from backend.schemas.ai import AITestRequest, AITestResponse
 from backend.services.ollama_service import ollama_service
+from backend.security import LOCAL_ORIGIN_REGEX, SAFE_METHODS, is_allowed_origin
 
 # Configure structured logging
 logging.basicConfig(
@@ -71,8 +72,16 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("✅ Database tables initialized successfully.")
 
+    # Restore the persisted autonomous schedule (if the user enabled it)
+    from backend.scheduler.daily_scheduler import daily_scheduler
+    try:
+        await daily_scheduler.restore_from_profile()
+    except Exception as e:  # never block startup on the scheduler
+        logger.error("Could not restore scheduler state: %s", e)
+
     yield
 
+    daily_scheduler.shutdown()
     logger.info("Shutting down %s...", settings.APP_NAME)
 
 
@@ -85,20 +94,31 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS for local development and future dashboard/iPhone access
+# CORS: only this machine, private-LAN devices (your iPhone) and explicitly configured origins.
+# Never "*": with credentials that would let any website you visit drive the agent.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite default
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "*"  # Local development flexibility
-    ],
+    allow_origins=settings.cors_extra_origins,
+    allow_origin_regex=LOCAL_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def reject_cross_site_writes(request: Request, call_next):
+    """
+    CSRF guard. Browsers always send an Origin header on cross-site POST/PUT/DELETE,
+    including "simple" requests that skip CORS preflight. Reject any state-changing
+    request whose Origin is not local/LAN/allow-listed.
+    """
+    if request.method not in SAFE_METHODS:
+        origin = request.headers.get("origin")
+        if not is_allowed_origin(origin, settings.cors_extra_origins):
+            logger.warning("Blocked cross-site %s %s from origin %s", request.method, request.url.path, origin)
+            return JSONResponse(status_code=403, content={"detail": "Cross-site request blocked."})
+    return await call_next(request)
 
 
 # Register API Routers

@@ -115,10 +115,10 @@ export default function SettingsPage({
           <span>Application Submission Policy</span>
         </h2>
         <p className="text-xs text-zinc-400">
-          Controls whether Agent KitKat submits job applications autonomously or holds them for review.
+          Controls how prepared applications are queued. Nothing is ever submitted without your explicit approval and a final confirmation for that specific application.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           {[
             {
               id: 'manual_approval',
@@ -127,14 +127,8 @@ export default function SettingsPage({
               badge: 'Default',
             },
             {
-              id: 'pre_authorized',
-              title: 'B. Pre-Authorized',
-              desc: 'Submits automatically ONLY when eligibility is 100% PASS and match score ≥ threshold.',
-              badge: 'Autonomous',
-            },
-            {
               id: 'prepare_only',
-              title: 'C. Prepare Only',
+              title: 'B. Prepare Only',
               desc: 'Generates tailored cover letters and mapped answers. Never touches website submit buttons.',
               badge: 'Safe Mode',
             },

@@ -11,7 +11,11 @@ class BrowserRunRequest(BaseModel):
     """Request payload to initiate browser automation for a prepared draft."""
     auto_submit: bool = Field(
         default=False,
-        description="Whether to submit the application or pause after filling for review."
+        description="Click the submit button after filling. Only allowed for drafts you approved, and only with confirm_submit=true."
+    )
+    confirm_submit: bool = Field(
+        default=False,
+        description="Explicit per-application confirmation that you reviewed the filled form and want it sent now."
     )
     headless: Optional[bool] = Field(
         default=None,

@@ -7,13 +7,21 @@ Strict Geographic & Career Hierarchy:
 4. CAREER LEVEL: Strictly Intern, Working Student, Fresher, and Entry-Level (Zero Senior / Lead / Staff).
 
 ZERO MOCK DATA. ZERO FABRICATED LISTINGS.
+
+Rules enforced here:
+- Fields a source does not provide are left as None (never "Competitive", "Tech Company", "Hybrid", ...).
+- Listings without a company or URL are skipped.
+- External IDs come from the source only; no positional fallbacks (dedupe is scoped per source).
+- Network/HTTP failures raise SourceFetchError so the discovery service can report source health.
 """
 
 import os
 import re
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import httpx
 from bs4 import BeautifulSoup
 
@@ -49,6 +57,52 @@ REMOTE_LOCATION_PATTERNS = [
 ]
 
 
+class SourceFetchError(RuntimeError):
+    """A discovery source could not be fetched (network error, HTTP error, bad payload)."""
+
+
+def _client(timeout: float = 20.0) -> httpx.AsyncClient:
+    return httpx.AsyncClient(timeout=timeout, trust_env=settings.HTTP_TRUST_ENV, follow_redirects=True)
+
+
+async def _get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
+    try:
+        res = await client.get(url, **kwargs)
+    except httpx.HTTPError as e:
+        raise SourceFetchError(f"{type(e).__name__}: {e}") from e
+    if res.status_code != 200:
+        raise SourceFetchError(f"HTTP {res.status_code} from {url}")
+    return res
+
+
+def _parse_date(value: Any) -> Optional[str]:
+    """Normalise epoch seconds / ISO-8601 / RFC-822 dates to ISO-8601 UTC. None if absent or unparseable."""
+    if value in (None, "", 0):
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(float(value), tz=timezone.utc).isoformat()
+        text = str(value).strip()
+        if text.isdigit():
+            return datetime.fromtimestamp(float(text), tz=timezone.utc).isoformat()
+        try:
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            dt = parsedate_to_datetime(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc).isoformat()
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
+def _str_or_none(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def is_senior_role(title: str) -> bool:
     """Check if title contains senior/lead/staff/architect keywords."""
     t = title.lower()
@@ -71,30 +125,68 @@ def is_intern_or_fresher_role(title: str, text: str = "") -> bool:
     return False
 
 
+# Remote regions an India-based candidate can actually work from
+OPEN_REMOTE_REGIONS = {
+    "", "worldwide", "anywhere", "global", "globally", "world", "international", "apac", "asia",
+    "asia pacific", "south asia", "anywhere in the world", "the world", "remote",
+}
+_REMOTE_FILLER = re.compile(r"\b(?:remote|fully|100%|only|in|from|the|based|work from home|wfh|friendly|first|ok|role|position)\b|[()\-–:/]")
+
+
+def classify_location(location_str: str, work_mode: str = "") -> Tuple[str, str]:
+    """
+    Classify where a job can be done from, for an India-based candidate.
+    Returns (category, detail) with category one of:
+      "india"             - located in India, or remote open to India
+      "open_remote"       - remote with no country restriction (worldwide / anywhere / unqualified)
+      "restricted_remote" - explicitly remote but limited to other countries (e.g. "Remote in USA", "Remote - Europe")
+      "remote_region_unclear" - a remote role whose location field names another country/city without
+                            saying whether remote work from India is allowed (e.g. "Berlin" + remote flag)
+      "foreign"           - onsite/hybrid outside India
+      "unknown"           - no usable location information
+    """
+    loc = (location_str or "").lower().strip()
+    mode_remote = (work_mode or "").lower() == "remote"
+    if not loc or loc in ("not stated", "not specified", "unknown", "n/a"):
+        return ("open_remote", "remote, region not stated") if mode_remote else ("unknown", "location not stated")
+
+    parts = [p.strip() for p in re.split(r"[,;|\n]|\s/\s", loc) if p.strip()]
+    found_open = found_restricted = found_unclear = found_foreign = None
+    for part in parts:
+        if any(re.search(pat, part) for pat in INDIA_LOCATION_PATTERNS):
+            return "india", part
+        has_remote_word = any(re.search(pat, part) for pat in REMOTE_LOCATION_PATTERNS)
+        if has_remote_word or mode_remote:
+            residual = re.sub(r"\s+", " ", _REMOTE_FILLER.sub(" ", part)).strip(" .")
+            if residual in OPEN_REMOTE_REGIONS or "worldwide" in residual or "anywhere" in residual:
+                found_open = found_open or part
+            elif has_remote_word:
+                found_restricted = found_restricted or part
+            else:
+                found_unclear = found_unclear or part
+        else:
+            found_foreign = found_foreign or part
+    if found_open:
+        return "open_remote", found_open
+    if found_restricted:
+        return "restricted_remote", found_restricted
+    if found_unclear:
+        return "remote_region_unclear", found_unclear
+    return "foreign", found_foreign or loc
+
+
 def is_geographically_eligible(location_str: str, work_mode: str = "", text: str = "") -> tuple[bool, bool]:
     """
     Returns (is_eligible, is_india):
-    - India location -> Eligible (is_india=True)
-    - International Remote -> Eligible (is_india=False)
-    - Foreign Onsite/Hybrid -> Ineligible (is_eligible=False)
+    - India location (or remote open to India) -> eligible, is_india=True
+    - Remote with no country restriction -> eligible, is_india=False
+    - Remote restricted to other countries, or foreign onsite/hybrid -> not eligible
+    (`text` is accepted for backwards compatibility and ignored: location fields decide.)
     """
-    loc = location_str.lower()
-    mode = work_mode.lower()
-    raw = text.lower()[:400]
-
-    is_india = (
-        any(re.search(pat, loc) for pat in INDIA_LOCATION_PATTERNS)
-        or any(re.search(pat, raw) for pat in INDIA_LOCATION_PATTERNS)
-    )
-    is_remote = (
-        mode == "remote"
-        or any(re.search(pat, loc) for pat in REMOTE_LOCATION_PATTERNS)
-        or any(re.search(pat, raw) for pat in REMOTE_LOCATION_PATTERNS)
-    )
-
-    if is_india:
+    category, _ = classify_location(location_str, work_mode)
+    if category == "india":
         return True, True
-    if is_remote:
+    if category == "open_remote":
         return True, False
     return False, False
 
@@ -109,430 +201,407 @@ class BaseDiscoverySource:
 
 class TechInternshipsDiscoverySource(BaseDiscoverySource):
     """
-    Verified Live Tech Internships & New Grad Feed (Official PittCSC / SimplifyJobs repositories).
-    Pulls real live tech internships & graduate roles, prioritizing India positions and International Remote positions.
-    Rejects foreign onsite/hybrid roles.
+    SimplifyJobs / Pitt CSC community-maintained internship & new-grad listings (public JSON on GitHub).
+    Mostly US roles: only India roles and explicitly remote roles are kept.
+    NOTE: the internships repository is named per season; override the URL with
+    SIMPLIFY_INTERNSHIPS_URL / SIMPLIFY_NEW_GRAD_URL env vars when a new season starts.
     """
     name = "simplify_internships"
-    INTERNSHIPS_URL = "https://raw.githubusercontent.com/SimplifyJobs/Summer2025-Internships/dev/.github/scripts/listings.json"
-    NEW_GRAD_URL = "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json"
+    INTERNSHIPS_URL = os.getenv(
+        "SIMPLIFY_INTERNSHIPS_URL",
+        "https://raw.githubusercontent.com/SimplifyJobs/Summer2025-Internships/dev/.github/scripts/listings.json",
+    )
+    NEW_GRAD_URL = os.getenv(
+        "SIMPLIFY_NEW_GRAD_URL",
+        "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+    )
 
-    async def search(self, keywords: List[str], locations: List[str], limit: int = 12) -> List[Dict[str, Any]]:
+    def parse(self, data: List[Dict[str, Any]], is_internship_feed: bool) -> List[Dict[str, Any]]:
         india_results: List[Dict[str, Any]] = []
         remote_results: List[Dict[str, Any]] = []
+        for item in data:
+            if not isinstance(item, dict) or not item.get("active", True) or item.get("is_visible") is False:
+                continue
+            title = _str_or_none(item.get("title"))
+            company = _str_or_none(item.get("company_name"))
+            url = _str_or_none(item.get("url"))
+            if not url or not title or not company:
+                continue
+            if is_senior_role(title):
+                continue
 
-        urls = [self.INTERNSHIPS_URL, self.NEW_GRAD_URL]
+            title_lower = title.lower()
+            is_tech = any(k in title_lower for k in [
+                "software", "developer", "engineer", "data", "ai",
+                "machine learning", "frontend", "backend", "full stack",
+                "cloud", "security", "web", "systems", "research"
+            ])
+            if not is_tech:
+                continue
+            is_early_career = is_internship_feed or any(k in title_lower for k in [
+                "intern", "co-op", "fellow", "student", "junior", "trainee", "associate", "graduate", "new grad"
+            ])
+            if not is_early_career:
+                continue
 
-        try:
-            async with httpx.AsyncClient(timeout=20.0, trust_env=False) as client:
-                for target_url in urls:
-                    try:
-                        res = await client.get(target_url)
-                        if res.status_code != 200:
-                            continue
-                        data = res.json()
-                        for item in data:
-                            if not item.get("active", True):
-                                continue
-                            title = item.get("title", "")
-                            company = item.get("company_name", "")
-                            url = item.get("url", "")
-                            if not url or not title or not company:
-                                continue
+            locs = item.get("locations", [])
+            loc_str = ", ".join(str(l) for l in locs) if isinstance(locs, list) else (_str_or_none(locs) or "")
+            is_eligible, is_india = is_geographically_eligible(loc_str)
+            if not is_eligible:
+                continue
+            is_remote = any(re.search(pat, loc_str.lower()) for pat in REMOTE_LOCATION_PATTERNS)
 
-                            # Hard exclusion of senior / staff / lead
-                            if is_senior_role(title):
-                                continue
+            degrees = item.get("degrees") or []
+            facts = [f"{title} at {company}", f"Locations: {loc_str or 'not stated'}"]
+            if degrees:
+                facts.append(f"Degrees listed: {', '.join(str(d) for d in degrees)}")
+            if item.get("category"):
+                facts.append(f"Category: {item.get('category')}")
+            if item.get("sponsorship"):
+                facts.append(f"Sponsorship: {item.get('sponsorship')}")
 
-                            # Technical role check
-                            title_lower = title.lower()
-                            is_tech = any(k in title_lower for k in [
-                                "software", "developer", "engineer", "data", "ai",
-                                "machine learning", "frontend", "backend", "full stack",
-                                "cloud", "security", "web", "systems", "research"
-                            ])
-                            if not is_tech:
-                                continue
+            job_dict = {
+                "title": title,
+                "company": company,
+                "url": url,
+                "description": "",  # this feed carries no job description; analyse the URL for details
+                "raw_text": "\n".join(facts),
+                "location": loc_str or None,
+                "work_mode": "Remote" if is_remote else "Unknown",
+                "employment_type": "Internship" if is_internship_feed else None,
+                "source": self.name,
+                "job_id_external": _str_or_none(item.get("id")),
+                "salary_stipend": None,
+                "posted_at": _parse_date(item.get("date_posted")),
+            }
+            (india_results if is_india else remote_results).append(job_dict)
+        return india_results + remote_results
 
-                            # Must be intern, student, or junior/entry role
-                            is_early_career = any(k in title_lower for k in [
-                                "intern", "co-op", "fellow", "student", "junior", "trainee", "associate", "graduate", "new grad"
-                            ]) or "intern" in target_url
-                            if not is_early_career:
-                                continue
-
-                            locs = item.get("locations", [])
-                            loc_str = ", ".join(locs) if isinstance(locs, list) else str(locs)
-
-                            # Geographic eligibility check: India first, Foreign ONLY if Remote
-                            is_eligible, is_india = is_geographically_eligible(loc_str)
-                            if not is_eligible:
-                                # Foreign onsite / hybrid -> Skip
-                                continue
-
-                            is_remote = "remote" in loc_str.lower() or "worldwide" in loc_str.lower()
-                            work_mode = "Remote" if is_remote else ("Hybrid" if is_india else "Remote")
-
-                            desc = (
-                                f"{title} opportunity at {company}. "
-                                f"Locations: {loc_str}. Target degrees: {', '.join(item.get('degrees', ['Bachelor']))}. "
-                                f"Category: {item.get('category', 'Technology')}."
-                            )
-
-                            job_dict = {
-                                "title": title,
-                                "company": company,
-                                "url": url,
-                                "description": desc,
-                                "raw_text": f"{title} at {company}\nLocations: {loc_str}\n\n{desc}",
-                                "location": loc_str if loc_str else ("India" if is_india else "Remote"),
-                                "work_mode": work_mode,
-                                "source": "simplify_internships",
-                                "job_id_external": str(item.get("id") or (len(india_results) + len(remote_results))),
-                                "salary_stipend": "Paid Internship / Stipend" if "intern" in title_lower else "Competitive Entry-Level",
-                            }
-
-                            if is_india:
-                                india_results.append(job_dict)
-                            else:
-                                remote_results.append(job_dict)
-
-                    except Exception as fe:
-                        logger.warning("Error fetching dataset from %s: %s", target_url, fe)
-
-            # Prioritize India opportunities at the very top, followed by International Remote
-            combined = india_results + remote_results
-            logger.info("Tech Internships Feed: Discovered %d India roles, %d International Remote roles.", len(india_results), len(remote_results))
-            return combined[:limit]
-
-        except Exception as e:
-            logger.warning("Tech Internships Feed failed: %s", e)
-            return []
+    async def search(self, keywords: List[str], locations: List[str], limit: int = 12) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
+        errors: List[str] = []
+        async with _client(30.0) as client:
+            for target_url, is_internship_feed in ((self.INTERNSHIPS_URL, True), (self.NEW_GRAD_URL, False)):
+                try:
+                    res = await _get(client, target_url)
+                    data = res.json()
+                    if not isinstance(data, list):
+                        raise SourceFetchError("Unexpected payload (expected a JSON list)")
+                    results.extend(self.parse(data, is_internship_feed))
+                except (SourceFetchError, ValueError) as e:
+                    errors.append(f"{target_url}: {e}")
+                    logger.warning("Simplify feed %s failed: %s", target_url, e)
+        if errors and not results:
+            raise SourceFetchError("; ".join(errors))
+        # India first, then international remote
+        results.sort(key=lambda j: 0 if is_geographically_eligible(j.get("location") or "")[1] else 1)
+        return results[:limit]
 
 
 class ArbeitnowDiscoverySource(BaseDiscoverySource):
     """
-    Arbeitnow Public Job Board API.
-    Filtered strictly for Working Student / Intern / Junior tech positions that are 100% REMOTE.
-    Foreign onsite/hybrid listings are rejected.
+    Arbeitnow public job board API (https://www.arbeitnow.com/api/job-board-api).
+    Kept: intern / working-student / junior tech roles located in India or flagged remote.
     """
     name = "arbeitnow"
     BASE_URL = "https://www.arbeitnow.com/api/job-board-api"
 
-    async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
+    def parse(self, jobs: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
+        for j in jobs:
+            title = _str_or_none(j.get("title"))
+            company = _str_or_none(j.get("company_name"))
+            url = _str_or_none(j.get("url"))
+            if not title or not company or not url:
+                continue
+            clean_desc = BeautifulSoup(j.get("description") or "", "html.parser").get_text(separator="\n").strip()
+            if is_senior_role(title) or not is_intern_or_fresher_role(title, clean_desc):
+                continue
+            loc = _str_or_none(j.get("location")) or ""
+            is_remote = bool(j.get("remote")) or any(re.search(p, loc.lower()) for p in REMOTE_LOCATION_PATTERNS)
+            # Arbeitnow's "location" is the office city; a remote flag alone does not say which
+            # countries may apply, so the listing is kept and eligibility flags the region as UNKNOWN.
+            category, _ = classify_location(loc, "Remote" if is_remote else "")
+            if category not in ("india", "open_remote", "remote_region_unclear"):
+                continue
+            title_lower = title.lower()
+            if not any(k in title_lower for k in [
+                "developer", "software", "engineer", "python", "data", "intern",
+                "web", "frontend", "backend", "full stack", "ai", "machine learning"
+            ]):
+                continue
+            job_types = j.get("job_types") or []
+            results.append({
+                "title": title,
+                "company": company,
+                "url": url,
+                "description": clean_desc[:5000],
+                "raw_text": f"{title} at {company}\nLocation: {loc or 'not stated'}\nRemote: {'yes' if j.get('remote') else 'not stated'}\n\n{clean_desc[:4000]}",
+                "location": loc or None,
+                "work_mode": "Remote" if is_remote else "Unknown",
+                "employment_type": ", ".join(job_types) if job_types else None,
+                "source": self.name,
+                "job_id_external": _str_or_none(j.get("slug")),
+                "salary_stipend": None,
+                "posted_at": _parse_date(j.get("created_at")),
+            })
+            if len(results) >= limit:
+                break
+        return results
 
-        try:
-            async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
-                res = await client.get(self.BASE_URL)
-                if res.status_code == 200:
-                    data = res.json()
-                    jobs = data.get("data", [])
-
-                    for j in jobs:
-                        title = j.get("title", "")
-                        company = j.get("company_name", "Tech Company")
-                        raw_desc = j.get("description", "")
-                        clean_desc = BeautifulSoup(raw_desc, "html.parser").get_text(separator="\n").strip()
-
-                        # Must not be senior
-                        if is_senior_role(title):
-                            continue
-
-                        # Intern / Working Student / Junior only
-                        if not is_intern_or_fresher_role(title, clean_desc):
-                            continue
-
-                        loc = j.get("location") or ""
-                        is_remote = j.get("remote", False) or "remote" in loc.lower() or "worldwide" in loc.lower()
-                        is_india = any(re.search(pat, loc.lower()) for pat in INDIA_LOCATION_PATTERNS)
-
-                        # Must be in India OR 100% Remote
-                        if not is_india and not is_remote:
-                            continue
-
-                        title_lower = title.lower()
-                        is_tech = any(k in title_lower for k in [
-                            "developer", "software", "engineer", "python", "data", "intern",
-                            "web", "frontend", "backend", "full stack", "ai", "machine learning"
-                        ])
-
-                        if is_tech:
-                            results.append({
-                                "title": title,
-                                "company": company,
-                                "url": j.get("url", ""),
-                                "description": clean_desc[:2500],
-                                "raw_text": f"{title} at {company}\nLocation: {loc}\n\n{clean_desc[:1500]}",
-                                "location": loc if loc else ("India" if is_india else "Remote"),
-                                "work_mode": "Remote" if is_remote else "Hybrid",
-                                "source": "arbeitnow",
-                                "job_id_external": str(j.get("slug") or len(results)),
-                                "salary_stipend": "Paid Working Student / Intern",
-                            })
-
-                        if len(results) >= limit:
-                            break
-
-                    logger.info("Arbeitnow API: Discovered %d real live Remote/India intern opportunities.", len(results))
-        except Exception as e:
-            logger.warning("Arbeitnow API fetch failed: %s", e)
-
+    async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
+        async with _client(20.0) as client:
+            res = await _get(client, self.BASE_URL)
+            try:
+                jobs = res.json().get("data", [])
+            except ValueError as e:
+                raise SourceFetchError(f"Invalid JSON: {e}") from e
+        results = self.parse(jobs, limit)
+        logger.info("Arbeitnow: %d matching listings.", len(results))
         return results
 
 
+def _format_salary(min_v: Any, max_v: Any, currency: Any, period: Any = None) -> Optional[str]:
+    if min_v in (None, "", 0) and max_v in (None, "", 0):
+        return None
+    cur = f"{currency} " if currency else ""
+    rng = f"{min_v}-{max_v}" if min_v and max_v and min_v != max_v else f"{min_v or max_v}"
+    per = f" per {period}" if period else ""
+    return f"{cur}{rng}{per}"
+
+
 class JobicyDiscoverySource(BaseDiscoverySource):
-    """
-    Jobicy Public Remote Jobs API.
-    Filtered strictly for Entry-Level & Intern tech opportunities (100% Remote).
-    """
+    """Jobicy public remote-jobs API (https://jobicy.com/api/v2/remote-jobs). All listings are remote."""
     name = "jobicy"
     BASE_URL = "https://jobicy.com/api/v2/remote-jobs"
 
-    async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
+    def parse(self, jobs: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
-        try:
-            params = {
-                "count": limit * 4,
-                "tag": "entry-level"
-            }
-            async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
-                res = await client.get(self.BASE_URL, params=params)
-                if res.status_code == 200:
-                    data = res.json()
-                    jobs = data.get("jobs", [])
-                    for j in jobs:
-                        title = j.get("jobTitle", "Developer")
-                        company = j.get("companyName", "Tech Company")
-                        raw_desc = j.get("jobDescription", "")
-                        clean_desc = BeautifulSoup(raw_desc, "html.parser").get_text(separator="\n").strip()
+        for j in jobs:
+            title = _str_or_none(j.get("jobTitle"))
+            company = _str_or_none(j.get("companyName"))
+            url = _str_or_none(j.get("url"))
+            if not title or not company or not url or is_senior_role(title):
+                continue
+            title_lower = title.lower()
+            is_tech = any(k in title_lower for k in [
+                "developer", "software", "engineer", "python", "data", "intern",
+                "web", "frontend", "backend", "full stack", "ai", "cloud", "qa"
+            ])
+            is_non_tech = any(bad in title_lower for bad in [
+                "sales", "account executive", "recruiter", "customer service", "telesales", "bdr", "sdr", "marketer"
+            ])
+            if not is_tech or is_non_tech:
+                continue
+            clean_desc = BeautifulSoup(j.get("jobDescription") or "", "html.parser").get_text(separator="\n").strip()
+            level = _str_or_none(j.get("jobLevel"))
+            if level and is_senior_role(level):
+                continue
+            geo = _str_or_none(j.get("jobGeo"))
+            if not is_geographically_eligible(geo or "", "Remote")[0]:
+                continue
+            job_type = j.get("jobType")
+            results.append({
+                "title": title,
+                "company": company,
+                "url": url,
+                "description": clean_desc[:5000],
+                "raw_text": f"{title} at {company}\nLocation: {geo or 'not stated'} (Remote)\nLevel: {level or 'not stated'}\n\n{clean_desc[:4000]}",
+                "location": geo,
+                "work_mode": "Remote",
+                "employment_type": ", ".join(job_type) if isinstance(job_type, list) else _str_or_none(job_type),
+                "source": self.name,
+                "job_id_external": _str_or_none(j.get("id")),
+                "salary_stipend": _format_salary(j.get("annualSalaryMin"), j.get("annualSalaryMax"), j.get("salaryCurrency"), "year"),
+                "posted_at": _parse_date(j.get("pubDate")),
+            })
+            if len(results) >= limit:
+                break
+        return results
 
-                        # Must not be senior
-                        if is_senior_role(title):
-                            continue
-
-                        # Ensure technical role
-                        title_lower = title.lower()
-                        is_tech = any(k in title_lower for k in [
-                            "developer", "software", "engineer", "python", "data", "intern",
-                            "web", "frontend", "backend", "full stack", "ai", "cloud", "qa"
-                        ])
-                        is_non_tech = any(bad in title_lower for bad in [
-                            "sales", "account executive", "recruiter", "customer service", "telesales", "bdr", "sdr", "marketer"
-                        ])
-
-                        if not is_tech or is_non_tech:
-                            continue
-
-                        geo = j.get("jobGeo") or "Remote"
-                        results.append({
-                            "title": title,
-                            "company": company,
-                            "url": j.get("url", ""),
-                            "description": clean_desc[:2500],
-                            "raw_text": f"{title} at {company}\nLocation: {geo} (Remote)\n\n{clean_desc[:1500]}",
-                            "location": geo,
-                            "work_mode": "Remote",
-                            "source": "jobicy",
-                            "job_id_external": str(j.get("id")),
-                            "salary_stipend": j.get("annualSalaryMin") or "Stipend / Competitive",
-                        })
-                        if len(results) >= limit:
-                            break
-                    logger.info("Jobicy API: Discovered %d real live entry-level remote opportunities.", len(results))
-        except Exception as e:
-            logger.warning("Jobicy API fetch failed: %s", e)
-
+    async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
+        async with _client(20.0) as client:
+            res = await _get(client, self.BASE_URL, params={"count": min(limit * 4, 50), "tag": "entry-level"})
+            try:
+                jobs = res.json().get("jobs", [])
+            except ValueError as e:
+                raise SourceFetchError(f"Invalid JSON: {e}") from e
+        results = self.parse(jobs, limit)
+        logger.info("Jobicy: %d matching listings.", len(results))
         return results
 
 
 class RemotiveDiscoverySource(BaseDiscoverySource):
-    """
-    Remotive Public Job Board API.
-    Filtered strictly for Junior & Intern developer listings (100% Remote).
-    """
+    """Remotive public API (https://remotive.com/api/remote-jobs). All listings are remote."""
     name = "remotive"
     BASE_URL = "https://remotive.com/api/remote-jobs"
 
-    async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
+    def parse(self, jobs: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
+        for j in jobs:
+            title = _str_or_none(j.get("title"))
+            company = _str_or_none(j.get("company_name"))
+            url = _str_or_none(j.get("url"))
+            if not title or not company or not url:
+                continue
+            clean_desc = BeautifulSoup(j.get("description") or "", "html.parser").get_text(separator="\n").strip()
+            if is_senior_role(title) or not is_intern_or_fresher_role(title, clean_desc):
+                continue
+            title_lower = title.lower()
+            is_tech = any(k in title_lower for k in [
+                "developer", "software", "engineer", "python", "data", "intern",
+                "web", "frontend", "backend", "full stack", "ai"
+            ])
+            is_non_tech = any(bad in title_lower for bad in [
+                "content creator", "office assistant", "customer service", "sales", "marketing", "recruiter"
+            ])
+            if not is_tech or is_non_tech:
+                continue
+            loc = _str_or_none(j.get("candidate_required_location"))
+            if not is_geographically_eligible(loc or "", "Remote")[0]:
+                continue  # e.g. "USA Only": remote, but not open to candidates in India
+            results.append({
+                "title": title,
+                "company": company,
+                "url": url,
+                "description": clean_desc[:5000],
+                "raw_text": f"{title} at {company}\nCandidate location: {loc or 'not stated'} (Remote)\n\n{clean_desc[:4000]}",
+                "location": loc,
+                "work_mode": "Remote",
+                "employment_type": _str_or_none(j.get("job_type")),
+                "source": self.name,
+                "job_id_external": _str_or_none(j.get("id")),
+                "salary_stipend": _str_or_none(j.get("salary")),
+                "posted_at": _parse_date(j.get("publication_date")),
+            })
+            if len(results) >= limit:
+                break
+        return results
 
-        try:
-            params = {
-                "category": "software-dev",
-                "limit": limit * 4
-            }
-            async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
-                res = await client.get(self.BASE_URL, params=params)
-                if res.status_code == 200:
-                    data = res.json()
-                    jobs = data.get("jobs", [])
-                    for j in jobs:
-                        title = j.get("title", "")
-                        company = j.get("company_name", "Tech Startup")
-                        raw_desc = j.get("description", "")
-                        clean_desc = BeautifulSoup(raw_desc, "html.parser").get_text(separator="\n").strip()
-
-                        # Must not be senior
-                        if is_senior_role(title):
-                            continue
-
-                        # Check if intern / junior / entry level
-                        if not is_intern_or_fresher_role(title, clean_desc):
-                            continue
-
-                        # Ensure technical role
-                        title_lower = title.lower()
-                        is_tech = any(k in title_lower for k in [
-                            "developer", "software", "engineer", "python", "data", "intern",
-                            "web", "frontend", "backend", "full stack", "ai"
-                        ])
-                        is_non_tech = any(bad in title_lower for bad in [
-                            "content creator", "office assistant", "customer service", "sales", "marketing", "recruiter"
-                        ])
-
-                        if not is_tech or is_non_tech:
-                            continue
-
-                        loc = j.get("candidate_required_location") or "Remote"
-                        results.append({
-                            "title": title,
-                            "company": company,
-                            "url": j.get("url", ""),
-                            "description": clean_desc[:2500],
-                            "raw_text": f"{title} at {company}\nLocation: {loc} (Remote)\n\n{clean_desc[:1500]}",
-                            "location": loc,
-                            "work_mode": "Remote",
-                            "source": "remotive",
-                            "job_id_external": str(j.get("id")),
-                            "salary_stipend": j.get("salary") or "Competitive",
-                        })
-                        if len(results) >= limit:
-                            break
-                    logger.info("Remotive API: Discovered %d real live intern/junior remote opportunities.", len(results))
-        except Exception as e:
-            logger.warning("Remotive API fetch failed: %s", e)
-
+    async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
+        async with _client(20.0) as client:
+            res = await _get(client, self.BASE_URL, params={"category": "software-dev", "limit": limit * 10})
+            try:
+                jobs = res.json().get("jobs", [])
+            except ValueError as e:
+                raise SourceFetchError(f"Invalid JSON: {e}") from e
+        results = self.parse(jobs, limit)
+        logger.info("Remotive: %d matching listings.", len(results))
         return results
 
 
 class WeWorkRemotelyDiscoverySource(BaseDiscoverySource):
-    """
-    WeWorkRemotely Live RSS Feed.
-    Filtered strictly for Entry-Level and Junior remote programming jobs (100% Remote).
-    """
+    """We Work Remotely public RSS feed (programming category). All listings are remote."""
     name = "weworkremotely"
     BASE_URL = "https://weworkremotely.com/categories/remote-programming-jobs.rss"
 
-    async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
-        results: List[Dict[str, Any]] = []
-
+    def parse(self, xml_text: str, limit: int) -> List[Dict[str, Any]]:
         try:
-            async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
-                res = await client.get(self.BASE_URL)
-                if res.status_code == 200:
-                    root = ET.fromstring(res.text)
-                    items = root.findall(".//item")
+            root = ET.fromstring(xml_text)
+        except ET.ParseError as e:
+            raise SourceFetchError(f"Invalid RSS: {e}") from e
+        results: List[Dict[str, Any]] = []
+        for it in root.findall(".//item"):
+            raw_title = (it.findtext("title") or "").strip()
+            link = (it.findtext("link") or "").strip()
+            clean_desc = BeautifulSoup(it.findtext("description") or "", "html.parser").get_text(separator="\n").strip()
+            if ":" not in raw_title or not link:
+                continue  # WWR titles are "Company: Role"; without it we would have to guess the company
+            company, job_title = (x.strip() for x in raw_title.split(":", 1))
+            if not company or not job_title:
+                continue
+            if is_senior_role(job_title) or not is_intern_or_fresher_role(job_title, clean_desc):
+                continue
+            region = _str_or_none(it.findtext("region"))
+            if not is_geographically_eligible(region or "", "Remote")[0]:
+                continue
+            results.append({
+                "title": job_title,
+                "company": company,
+                "url": link,
+                "description": clean_desc[:5000],
+                "raw_text": f"{job_title} at {company}\nRegion: {region or 'not stated'} (Remote)\n\n{clean_desc[:4000]}",
+                "location": region,
+                "work_mode": "Remote",
+                "employment_type": _str_or_none(it.findtext("type")),
+                "source": self.name,
+                "job_id_external": _str_or_none(it.findtext("guid")) or link.rstrip("/").split("/")[-1],
+                "salary_stipend": None,
+                "posted_at": _parse_date(it.findtext("pubDate")),
+            })
+            if len(results) >= limit:
+                break
+        return results
 
-                    for it in items:
-                        raw_title = it.find("title").text if it.find("title") is not None else ""
-                        link = it.find("link").text if it.find("link") is not None else ""
-                        raw_desc = it.find("description").text if it.find("description") is not None else ""
-                        clean_desc = BeautifulSoup(raw_desc, "html.parser").get_text(separator="\n").strip()
-
-                        if ":" in raw_title:
-                            company, job_title = raw_title.split(":", 1)
-                            company = company.strip()
-                            job_title = job_title.strip()
-                        else:
-                            company = "Tech Company"
-                            job_title = raw_title.strip()
-
-                        # Must not be senior
-                        if is_senior_role(job_title):
-                            continue
-
-                        # Must be intern or junior
-                        if not is_intern_or_fresher_role(job_title, clean_desc):
-                            continue
-
-                        results.append({
-                            "title": job_title,
-                            "company": company,
-                            "url": link,
-                            "description": clean_desc[:2500],
-                            "raw_text": f"{job_title} at {company}\nRemote Programming Role\n\n{clean_desc[:1500]}",
-                            "location": "Remote",
-                            "work_mode": "Remote",
-                            "source": "weworkremotely",
-                            "job_id_external": link.split("/")[-1] if link else str(len(results)),
-                            "salary_stipend": "Competitive Remote Rate",
-                        })
-
-                        if len(results) >= limit:
-                            break
-
-                    logger.info("WeWorkRemotely RSS: Discovered %d real live remote opportunities.", len(results))
-        except Exception as e:
-            logger.warning("WeWorkRemotely RSS fetch failed: %s", e)
-
+    async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
+        async with _client(20.0) as client:
+            res = await _get(client, self.BASE_URL)
+        results = self.parse(res.text, limit)
+        logger.info("WeWorkRemotely: %d matching listings.", len(results))
         return results
 
 
 class AdzunaDiscoverySource(BaseDiscoverySource):
     """
-    Adzuna Job Search API.
-    Targeting India software internships if configured.
+    Adzuna Job Search API (India). Optional: requires free ADZUNA_APP_ID / ADZUNA_APP_KEY.
     """
     name = "adzuna"
     BASE_URL = "https://api.adzuna.com/v1/api/jobs/in/search/1"
 
-    async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
-        app_id = os.getenv("ADZUNA_APP_ID")
-        app_key = os.getenv("ADZUNA_APP_KEY")
+    @staticmethod
+    def is_configured() -> bool:
+        return bool(os.getenv("ADZUNA_APP_ID") and os.getenv("ADZUNA_APP_KEY"))
 
-        if not app_id or not app_key:
-            return []
-
+    def parse(self, jobs: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
-        try:
-            params = {
-                "app_id": app_id,
-                "app_key": app_key,
-                "what": "Software Intern",
-                "where": "India",
-                "results_per_page": limit,
-                "content-type": "application/json"
-            }
-            async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
-                res = await client.get(self.BASE_URL, params=params)
-                if res.status_code == 200:
-                    data = res.json()
-                    jobs = data.get("results", [])
-                    for j in jobs[:limit]:
-                        title = j.get("title", "")
-                        if is_senior_role(title):
-                            continue
-                        results.append({
-                            "title": title,
-                            "company": j.get("company", {}).get("display_name", "Unknown"),
-                            "url": j.get("redirect_url", ""),
-                            "description": j.get("description", ""),
-                            "raw_text": f"{title} at {j.get('company', {}).get('display_name')}\nLocation: India\n\n{j.get('description')}",
-                            "location": "India",
-                            "work_mode": "Hybrid",
-                            "source": "adzuna",
-                            "job_id_external": str(j.get("id")),
-                            "salary_stipend": "Disclosed upon application",
-                        })
-                    logger.info("Adzuna API: Discovered %d real live India opportunities.", len(results))
-        except Exception as e:
-            logger.warning("Adzuna API fetch failed: %s", e)
+        for j in jobs[:limit]:
+            title = _str_or_none(j.get("title"))
+            company = _str_or_none((j.get("company") or {}).get("display_name"))
+            url = _str_or_none(j.get("redirect_url"))
+            if not title or not company or not url or is_senior_role(title):
+                continue
+            loc = _str_or_none((j.get("location") or {}).get("display_name"))
+            desc = _str_or_none(j.get("description")) or ""
+            results.append({
+                "title": title,
+                "company": company,
+                "url": url,
+                "description": desc,
+                "raw_text": f"{title} at {company}\nLocation: {loc or 'not stated'}\n\n{desc}",
+                "location": loc,
+                "work_mode": "Unknown",
+                "employment_type": _str_or_none(j.get("contract_time")),
+                "source": self.name,
+                "job_id_external": _str_or_none(j.get("id")),
+                "salary_stipend": _format_salary(j.get("salary_min"), j.get("salary_max"), "INR", "year")
+                if not j.get("salary_is_predicted") or str(j.get("salary_is_predicted")) == "0" else None,
+                "posted_at": _parse_date(j.get("created")),
+            })
+        return results
 
+    async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
+        if not self.is_configured():
+            return []
+        params = {
+            "app_id": os.getenv("ADZUNA_APP_ID"),
+            "app_key": os.getenv("ADZUNA_APP_KEY"),
+            "what": "software intern",
+            "where": "India",
+            "results_per_page": limit,
+            "content-type": "application/json",
+        }
+        async with _client(20.0) as client:
+            res = await _get(client, self.BASE_URL, params=params)
+            try:
+                jobs = res.json().get("results", [])
+            except ValueError as e:
+                raise SourceFetchError(f"Invalid JSON: {e}") from e
+        results = self.parse(jobs, limit)
+        logger.info("Adzuna: %d listings.", len(results))
         return results
 
 
-# Registry of 100% REAL LIVE active sources strictly prioritizing INDIA & INTERNATIONAL REMOTE
+# Registry of live public sources (India first, international only when remote)
 DISCOVERY_SOURCES: List[BaseDiscoverySource] = [
     TechInternshipsDiscoverySource(),
     ArbeitnowDiscoverySource(),

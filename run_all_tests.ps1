@@ -1,4 +1,4 @@
-# 🍫 Agent KitKat - Master Test Suite Runner
+﻿# 🍫 Agent KitKat - Master Test Suite Runner
 # Runs every phase test suite sequentially and reports comprehensive results
 
 Write-Host "==================================================" -ForegroundColor Yellow
@@ -20,6 +20,14 @@ try {
     Start-Sleep -Seconds 3
 }
 
+# 0. Deterministic regression suite (mocked Ollama and job APIs; throwaway database)
+Write-Host "`n>>> Running pytest regression suite ..." -ForegroundColor Cyan
+& $python -m pytest -q
+$pytestExit = $LASTEXITCODE
+if ($pytestExit -eq 0) { Write-Host "✅ PASSED: pytest suite" -ForegroundColor Green } else { Write-Host "❌ FAILED: pytest suite" -ForegroundColor Red }
+
+# Legacy phase scripts. They use a throwaway database too (tests/_isolation.py).
+# phase1 / live_server need Ollama; phase7 / master_e2e need internet access to the job APIs.
 $testFiles = @(
     "tests\test_phase1.py",
     "tests\test_phase2.py",
@@ -35,6 +43,7 @@ $testFiles = @(
 
 $passed = 0
 $failed = 0
+if ($pytestExit -ne 0) { $failed++ } else { $passed++ }
 
 foreach ($test in $testFiles) {
     Write-Host "`n>>> Running: $test ..." -ForegroundColor Cyan
@@ -50,7 +59,7 @@ foreach ($test in $testFiles) {
 
 Write-Host "`n==================================================" -ForegroundColor Yellow
 Write-Host "🏁 TEST SUITE RUN SUMMARY" -ForegroundColor Yellow
-Write-Host "Total Suites: $($testFiles.Count)" -ForegroundColor White
+Write-Host "Total Suites: $($testFiles.Count + 1)" -ForegroundColor White
 Write-Host "Passed:       $passed" -ForegroundColor Green
 Write-Host "Failed:       $failed" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Red" })
 Write-Host "==================================================" -ForegroundColor Yellow

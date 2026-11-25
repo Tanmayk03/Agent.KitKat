@@ -21,6 +21,7 @@ from backend.schemas.job import (
 from backend.tools.url_reader import URLReader
 from backend.tools.resume_parser import ResumeParser
 from backend.agents.job_reader import JobReaderAgent
+from backend.security import safe_upload_name, unique_path_in
 
 logger = logging.getLogger("agent_kitkat.job_service")
 settings = get_settings()
@@ -90,7 +91,11 @@ class JobService:
         """
         Analyze an uploaded job description document (PDF or DOCX).
         """
-        temp_path = os.path.join(settings.STORAGE_DIR, f"temp_{uuid.uuid4()}_{file_name}")
+        clean_name = safe_upload_name(file_name, [".pdf", ".docx"])
+        if len(file_bytes) > settings.MAX_UPLOAD_MB * 1024 * 1024:
+            raise ValueError(f"File is larger than {settings.MAX_UPLOAD_MB} MB.")
+        os.makedirs(settings.STORAGE_DIR, exist_ok=True)
+        temp_path = unique_path_in(settings.STORAGE_DIR, f"temp_{clean_name}")
         try:
             with open(temp_path, "wb") as f:
                 f.write(file_bytes)

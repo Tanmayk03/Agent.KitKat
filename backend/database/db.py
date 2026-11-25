@@ -5,6 +5,7 @@ Using Async SQLAlchemy with SQLite (aiosqlite).
 
 from typing import AsyncGenerator
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 
@@ -63,9 +64,16 @@ async def init_db() -> None:
             "ALTER TABLE applications ADD COLUMN pre_submit_screenshot VARCHAR(500)",
             "ALTER TABLE applications ADD COLUMN post_submit_screenshot VARCHAR(500)",
             "ALTER TABLE applications ADD COLUMN browser_logs JSON",
+            # Stage 2
+            "ALTER TABLE jobs ADD COLUMN employment_type VARCHAR(100)",
+            "ALTER TABLE jobs ADD COLUMN posted_at VARCHAR(40)",
+            "ALTER TABLE jobs ADD COLUMN fetched_at DATETIME",
+            "ALTER TABLE eligibility_results ADD COLUMN experience_status VARCHAR(20)",
+            "ALTER TABLE eligibility_results ADD COLUMN experience_details VARCHAR(500)",
         ]
         for stmt in migrations:
             try:
                 await conn.execute(text(stmt))
-            except Exception:
-                pass  # Column already exists
+            except OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise

@@ -15,6 +15,7 @@ from sqlalchemy import select, delete
 
 # Add project root to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import tests._isolation  # noqa: E402,F401  -- throwaway DB; never touches your real data
 
 from backend.main import app
 from backend.config import get_settings
@@ -110,7 +111,8 @@ async def run_phase7_tests():
         sources = src_res.json()
         assert len(sources) >= 3
         source_names = [s["source_name"] for s in sources]
-        assert "curated_feed" in source_names
+        # (the hardcoded "curated_feed" source was removed: only live public sources remain)
+        assert "curated_feed" not in source_names
         assert "remotive" in source_names
         print(f"Active Sources: {source_names}")
         print("✅ Test 1 Passed: Discovery sources cataloged and accessible.")

@@ -3,7 +3,7 @@ Agent KitKat - Application Preparation Schemas
 Pydantic schemas for cover letters, answers, form field values, approvals, and application tracker.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -35,7 +35,7 @@ class DraftUpdateRequest(BaseModel):
 
 
 class ApprovalDecisionRequest(BaseModel):
-    action: str = Field(..., description="'approve' or 'reject'")
+    action: Literal["approve", "reject"] = Field(..., description="'approve' or 'reject'")
     decision_notes: Optional[str] = Field(None, description="Optional feedback or notes")
 
 
@@ -67,6 +67,7 @@ class ApplicationTrackerItem(BaseModel):
     job_title: Optional[str] = None
     job_url: Optional[str] = None
     status: str
+    approval_status: Optional[str] = None
     match_score: Optional[float] = None
     submission_method: str
     submission_result: Optional[str] = None

@@ -16,6 +16,7 @@ import httpx
 
 # Ensure project root in sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import tests._isolation  # noqa: E402,F401  -- throwaway DB; never touches your real data
 
 from backend.main import app
 from backend.database.db import init_db

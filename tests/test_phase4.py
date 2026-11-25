@@ -17,6 +17,7 @@ from sqlalchemy import delete
 
 # Ensure project root in sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import tests._isolation  # noqa: E402,F401  -- throwaway DB; never touches your real data
 
 from backend.main import app
 from backend.database.db import init_db, AsyncSessionLocal
@@ -218,7 +219,11 @@ async def run_phase4_tests():
 
         # Ensure sorted descending
         scores = [r["overall_score"] for r in rankings]
-        assert scores == sorted(scores, reverse=True), "Rankings must be sorted in descending order!"
+        tiers = [{"PASS": 0, "UNKNOWN": 1, "FAIL": 2}[r["eligibility_status"]] for r in rankings]
+        assert tiers == sorted(tiers), "Eligible jobs must rank above unknown, and ineligible jobs last"
+        for t in set(tiers):
+            tier_scores = [r["overall_score"] for r, tt in zip(rankings, tiers) if tt == t]
+            assert tier_scores == sorted(tier_scores, reverse=True), "Within a tier, sort by score"
         # Eligible job must be above rejected ones
         assert rankings[0]["company"] == "TechNova Solutions"
         print("✅ Test 5 Passed: Rankings endpoint returned properly sorted opportunities.")

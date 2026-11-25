@@ -63,12 +63,13 @@ export default function ApprovalsPage({ onNavigateTab }) {
       setSubmittingDecision(true);
       await api.decideApproval(selectedApproval.id, decision, decisionNotes);
 
-      // If approved, trigger browser automation submission
+      // Approval never submits by itself. It fills the form (no submit click) and saves a
+      // screenshot; the final submission is a separate, confirmed action in the Tracker.
       if (decision === 'approved') {
         try {
-          await api.runBrowserAutomation(selectedApproval.draft_id, true);
+          await api.runBrowserAutomation(selectedApproval.draft_id, false);
         } catch (bErr) {
-          console.warn('Browser automation background trigger note:', bErr);
+          alert(`Approved. Could not pre-fill the form automatically: ${bErr.message}. You can retry from the Tracker or apply manually.`);
         }
       }
 

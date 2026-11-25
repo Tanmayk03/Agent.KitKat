@@ -20,6 +20,7 @@ import httpx
 
 # Ensure project root in sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import tests._isolation  # noqa: E402,F401  -- throwaway DB; never touches your real data
 
 from backend.main import app
 from backend.database.db import init_db
@@ -120,7 +121,7 @@ async def run_phase2_tests():
 
         assert profile["education"]["degree"] == "B.Tech"
         assert profile["education"]["specialization"] == "Computer Science and Data Science"
-        assert profile["education"]["college"] == "SRM University, Delhi NCR"
+        assert profile["education"]["college"] == "Example University, Delhi NCR"  # from tests/_isolation.py seed
         assert profile["education"]["cgpa"] == 8.44
         assert profile["education"]["graduation_year"] == 2027
         assert "Python" in profile["unverified_skills"]

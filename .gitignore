@@ -57,3 +57,6 @@ frontend/.vite/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Personal profile seed (never commit personal data)
+profile_seed.json

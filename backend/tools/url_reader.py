@@ -14,6 +14,12 @@ from typing import Tuple, Optional
 import httpx
 from bs4 import BeautifulSoup
 
+from backend.config import get_settings
+from backend.security import is_public_http_url
+
+settings = get_settings()
+MAX_REDIRECTS = 5
+
 logger = logging.getLogger("agent_kitkat.url_reader")
 
 BROWSER_HEADERS = {
@@ -42,14 +48,29 @@ class URLReader:
         if not url.startswith("http://") and not url.startswith("https://"):
             url = f"https://{url}"
 
+        blocked_msg = (
+            "This URL points to this computer or your local network, which Agent KitKat will not fetch. "
+            "Please paste the job description text instead."
+        )
         try:
             async with httpx.AsyncClient(
                 headers=BROWSER_HEADERS,
                 timeout=timeout,
-                follow_redirects=True,
-                trust_env=False
+                follow_redirects=False,
+                trust_env=settings.HTTP_TRUST_ENV
             ) as client:
-                response = await client.get(url)
+                # Follow redirects manually so every hop is checked against the SSRF guard
+                current = url
+                for _ in range(MAX_REDIRECTS + 1):
+                    if not is_public_http_url(current):
+                        return (None, blocked_msg, True)
+                    response = await client.get(current)
+                    if response.is_redirect and response.headers.get("location"):
+                        current = str(response.url.join(response.headers["location"]))
+                        continue
+                    break
+                else:
+                    return (None, "Too many redirects. Please paste the job description text.", True)
 
                 if response.status_code == 403 or response.status_code == 401:
                     logger.warning("Access restricted (HTTP %d) for URL: %s", response.status_code, url)

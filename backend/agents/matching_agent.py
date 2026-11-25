@@ -24,6 +24,7 @@ from backend.schemas.matching import (
     MatchCategoryScores,
     MatchResponse
 )
+from backend.tools.job_discovery_sources import classify_location
 from backend.agents.eligibility_agent import (
     EligibilityAgent,
     SENIOR_ROLE_KEYWORDS,
@@ -66,8 +67,9 @@ class MatchingAgent:
         missing_skills: List[str] = []
 
         if not job_skills:
-            # If no specific skills stated, give standard baseline
-            tech_score = 30.0
+            # No skills found in the posting: the factor is N/A (no invented baseline).
+            # The remaining four factors are rescaled to 100 below, and the explanation says so.
+            tech_score = 0.0
         else:
             for skill in job_skills:
                 if skill.lower() in candidate_skills_set:
@@ -141,19 +143,11 @@ class MatchingAgent:
         # Category 5: Location & Work Mode (Weight: 10%)
         # User constraint: Priority to India jobs; foreign jobs ONLY if Remote.
         # -------------------------------------------------------------
-        job_loc_lower = (job.location or "").lower()
-        job_mode_lower = (job.work_mode or "Unknown").lower()
-        is_in_india = (
-            any(re.search(pat, job_loc_lower) for pat in INDIA_LOCATION_PATTERNS)
-            or any(re.search(pat, (job.raw_text or "").lower()[:500]) for pat in INDIA_LOCATION_PATTERNS)
-        )
-        is_remote = (
-            job_mode_lower == "remote"
-            or any(re.search(pat, job_loc_lower) for pat in REMOTE_LOCATION_PATTERNS)
-            or any(re.search(pat, (job.work_mode or "").lower()) for pat in REMOTE_LOCATION_PATTERNS)
-        )
+        loc_category, _ = classify_location(job.location or "", job.work_mode or "")
+        is_in_india = loc_category == "india"
+        is_remote = loc_category == "open_remote"
 
-        if eligibility.location.status == "FAIL":
+        if eligibility.location.status in ("FAIL", "UNKNOWN"):
             loc_score = 0.0
         elif is_in_india:
             # Top priority score (10.0/10) for domestic India opportunities
@@ -167,7 +161,11 @@ class MatchingAgent:
         # -------------------------------------------------------------
         # Overall Weighted Score Calculation
         # -------------------------------------------------------------
-        overall_score = round(tech_score + edu_score + proj_score + role_score + loc_score, 1)
+        other_factors = edu_score + proj_score + role_score + loc_score
+        if job_skills:
+            overall_score = round(tech_score + other_factors, 1)
+        else:
+            overall_score = round(other_factors / 65.0 * 100.0, 1)
         # Cap strictly between 0 and 100
         overall_score = max(0.0, min(100.0, overall_score))
 
@@ -207,7 +205,8 @@ class MatchingAgent:
         # -------------------------------------------------------------
         explanation = (
             f"Overall Match Score: {overall_score}% | Status: {eligibility.overall_status} | Recommendation: {recommendation}\n"
-            f"- Technical Skills ({tech_score}/35): Matched {len(matching_skills)} of {len(job_skills)} required skills.\n"
+            + (f"- Technical Skills ({tech_score}/35): Matched {len(matching_skills)} of {len(job_skills)} required skills.\n"
+               if job_skills else "- Technical Skills (N/A): No recognisable skills in the posting text; the other four factors were rescaled to 100. Analyse the full job page for a better estimate.\n") +
             f"- Education & Graduation ({edu_score}/20): {eligibility.graduation.details}\n"
             f"- Projects & Experience ({proj_score}/20): Assessed against candidate portfolio and resume experience.\n"
             f"- Role Relevance ({role_score}/15): '{job.title}' compared with preferred intern roles.\n"

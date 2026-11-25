@@ -35,9 +35,19 @@ export default function TrackerPage() {
   }, []);
 
   const handleRunBrowser = async (draftId, autoSubmit = false) => {
+    if (autoSubmit) {
+      const ok = window.confirm(
+        'Submit this application now?\n\nAgent KitKat will fill the form again and click Submit. ' +
+        'Only continue if you reviewed the pre-submit screenshot and every answer is correct.'
+      );
+      if (!ok) return;
+    }
     try {
       setRunningDraftId(draftId);
-      await api.runBrowserAutomation(draftId, autoSubmit);
+      const result = await api.runBrowserAutomation(draftId, autoSubmit, autoSubmit);
+      if (result?.intervention_reason) {
+        alert(`${result.status}: ${result.intervention_reason}`);
+      }
       await fetchTracker();
     } catch (err) {
       alert(`Browser automation error: ${err.message}`);
@@ -90,13 +100,38 @@ export default function TrackerPage() {
             <span>Filling in Browser...</span>
           </span>
         );
+      case 'approved':
       case 'approved_for_submission':
-      case 'auto_approved':
         return (
           <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-200 border border-zinc-700/50">
-            <span>Approved for Submit</span>
+            <span>Approved – not sent</span>
           </span>
         );
+      case 'filled_ready_for_review':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-amber-300 border border-amber-800/40">
+            <span>Filled – review screenshot</span>
+          </span>
+        );
+      case 'submission_unverified':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-950/40 text-amber-300 border border-amber-800/40">
+            <span>Submitted – unverified</span>
+          </span>
+        );
+      case 'withdrawn':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-500 border border-zinc-700/50">
+            <span>Rejected by you</span>
+          </span>
+        );
+      case 'draft_ready':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700/50">
+            <span>Draft ready</span>
+          </span>
+        );
+      case 'awaiting_approval':
       case 'pending_approval':
         return (
           <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700/50">
@@ -218,14 +253,27 @@ export default function TrackerPage() {
                     </td>
 
                     <td className="py-3.5 px-4 text-right">
-                      {app.draft_id && app.status !== 'submitted' && (
-                        <button
-                          onClick={() => handleRunBrowser(app.draft_id, false)}
-                          disabled={runningDraftId === app.draft_id}
-                          className="px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 transition-colors disabled:opacity-50"
-                        >
-                          {runningDraftId === app.draft_id ? 'Running...' : 'Run in Browser'}
-                        </button>
+                      {app.draft_id && !['submitted', 'submission_unverified', 'withdrawn'].includes(app.status) && (
+                        <div className="flex justify-end gap-1.5">
+                          <button
+                            onClick={() => handleRunBrowser(app.draft_id, false)}
+                            disabled={runningDraftId === app.draft_id}
+                            title="Fill the form and save a screenshot. Never clicks Submit."
+                            className="px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 transition-colors disabled:opacity-50"
+                          >
+                            {runningDraftId === app.draft_id ? 'Running...' : 'Fill (no submit)'}
+                          </button>
+                          {app.approval_status === 'approved' && (
+                            <button
+                              onClick={() => handleRunBrowser(app.draft_id, true)}
+                              disabled={runningDraftId === app.draft_id}
+                              title="Final step: fill and submit. Requires your confirmation."
+                              className="px-2.5 py-1 rounded-md text-xs font-medium bg-amber-700 hover:bg-amber-600 text-white border border-amber-600 transition-colors disabled:opacity-50"
+                            >
+                              Submit…
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>

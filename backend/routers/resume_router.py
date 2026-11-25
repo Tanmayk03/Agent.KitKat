@@ -54,6 +54,8 @@ async def upload_resume(
             file_name=file.filename,
             file_bytes=file_bytes
         )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

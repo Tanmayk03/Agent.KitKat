@@ -16,7 +16,7 @@ from backend.schemas.application import (
     ApprovalRequestItem,
     ApplicationTrackerItem
 )
-from backend.services.application_service import application_service
+from backend.services.application_service import application_service, ApplicationConflictError
 
 router = APIRouter(prefix="/api/applications", tags=["Application Preparation & Tracker"])
 
@@ -42,6 +42,8 @@ async def prepare_application(
             resume_id=resume_id,
             policy_override=policy_override
         )
+    except ApplicationConflictError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -73,6 +75,8 @@ async def update_draft(
     """Edit drafted cover letter, custom answers, or mapped fields."""
     try:
         return await application_service.update_draft(session, draft_id, update_data)
+    except ApplicationConflictError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -102,6 +106,8 @@ async def decide_approval(
             action=request.action,
             decision_notes=request.decision_notes
         )
+    except ApplicationConflictError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

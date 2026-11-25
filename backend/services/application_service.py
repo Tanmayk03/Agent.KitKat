@@ -34,6 +34,13 @@ from backend.agents.application_agent import ApplicationAgent
 
 logger = logging.getLogger("agent_kitkat.application_service")
 
+# Application states after which a draft must never be regenerated or resubmitted
+FINAL_APPLICATION_STATES = {"submitted", "submission_unverified", "application_confirmed", "submission_uncertain"}
+
+
+class ApplicationConflictError(ValueError):
+    """Raised when an action would overwrite or duplicate an already-submitted application."""
+
 
 class ApplicationService:
     """Service managing application preparation, approval workflow, and tracker records."""
@@ -59,6 +66,15 @@ class ApplicationService:
         job = job_res.scalars().first()
         if not job:
             raise ValueError(f"Job with ID '{job_id}' not found.")
+
+        # Never regenerate a draft for an application that has already been sent
+        existing_app_res = await session.execute(select(Application).where(Application.job_id == job_id))
+        for existing in existing_app_res.scalars().all():
+            if existing.status in FINAL_APPLICATION_STATES:
+                raise ApplicationConflictError(
+                    f"An application for this job was already sent (status: {existing.status}). "
+                    "It will not be regenerated."
+                )
 
         # Fetch Profile
         profile = await ProfileService.get_or_create_profile(session)
@@ -91,31 +107,22 @@ class ApplicationService:
         form_fields = ApplicationAgent.map_form_fields(profile)
 
         # 4. Identify Unanswered Questions
-        unanswered = ApplicationAgent.identify_unanswered_questions(profile, form_fields)
+        unanswered = ApplicationAgent.identify_unanswered_questions(profile, form_fields, custom_answers)
 
         # 5. Determine Submission Policy
         user_prefs = profile.application_preferences or {}
         policy = policy_override or user_prefs.get("submission_policy", "manual_approval")
         min_score = user_prefs.get("min_match_score", 75)
 
-        # Status determination based on policy
+        # Status determination. Every submission needs an explicit, per-application human approval,
+        # so the legacy "pre_authorized" policy is treated exactly like manual approval.
         if policy == "prepare_only":
             draft_status = "drafted"
             approval_status = None
-        elif policy == "pre_authorized":
-            # Can only auto-approve if score >= min_score AND eligibility == PASS AND no unanswered questions
-            if (
-                match_eval.overall_score >= min_score
-                and match_eval.eligibility.overall_status == "PASS"
-                and len(unanswered) == 0
-            ):
-                draft_status = "auto_approved"
-                approval_status = "auto_approved"
-            else:
-                # Fallback to manual approval because human confirmation is required
-                draft_status = "pending_approval"
-                approval_status = "pending"
-        else:  # manual_approval
+        else:
+            if policy == "pre_authorized":
+                logger.info("Policy 'pre_authorized' is disabled for safety; queuing for manual approval.")
+            policy = "manual_approval"
             draft_status = "pending_approval"
             approval_status = "pending"
 
@@ -180,13 +187,16 @@ class ApplicationService:
         )
         existing_app = app_res.scalars().first()
 
-        if not existing_app:
+        if existing_app:
+            existing_app.draft_id = draft.id
+            existing_app.status = "draft_ready" if draft_status == "drafted" else "awaiting_approval"
+        else:
             new_app = Application(
                 id=str(uuid.uuid4()),
                 job_id=job.id,
                 draft_id=draft.id,
-                status="draft" if draft_status != "auto_approved" else "approved_for_submission",
-                submission_method="manual" if policy == "manual_approval" else "browser_automation"
+                status="draft_ready" if draft_status == "drafted" else "awaiting_approval",
+                submission_method="manual"
             )
             session.add(new_app)
 
@@ -222,6 +232,8 @@ class ApplicationService:
             return None
 
         draft, job = row
+        appr_res = await session.execute(select(ApprovalRequest.policy_applied).where(ApprovalRequest.draft_id == draft.id))
+        policy_applied = appr_res.scalars().first() or "prepare_only"
         return ApplicationDraftResponse(
             id=draft.id,
             job_id=job.id,
@@ -233,7 +245,7 @@ class ApplicationService:
             form_field_values=draft.form_field_values or {},
             unanswered_questions=draft.unanswered_questions or [],
             status=draft.status,
-            policy_applied="manual_approval",
+            policy_applied=policy_applied,
             created_at=draft.created_at
         )
 
@@ -250,6 +262,8 @@ class ApplicationService:
         draft = draft_res.scalars().first()
         if not draft:
             raise ValueError(f"Draft with ID '{draft_id}' not found.")
+        if draft.status in FINAL_APPLICATION_STATES:
+            raise ApplicationConflictError("This application was already sent; its draft can no longer be edited.")
 
         if update_data.cover_letter is not None:
             draft.cover_letter = update_data.cover_letter
@@ -345,18 +359,23 @@ class ApplicationService:
         appr.decided_at = datetime.utcnow()
         appr.decision_notes = decision_notes
 
-        if action.lower() == "approve":
+        if appr.status != "pending":
+            raise ApplicationConflictError(f"This approval request was already decided ({appr.status}).")
+
+        if action == "approve":
             appr.status = "approved"
             if draft:
                 draft.status = "approved"
             if application:
-                application.status = "approved_for_submission"
-        else:
+                application.status = "approved"
+        elif action == "reject":
             appr.status = "rejected"
             if draft:
                 draft.status = "rejected"
             if application:
-                application.status = "skipped"
+                application.status = "withdrawn"
+        else:
+            raise ValueError(f"Unknown action '{action}'. Use 'approve' or 'reject'.")
 
         await session.commit()
         await session.refresh(appr)
@@ -372,7 +391,7 @@ class ApplicationService:
             company=job.company if job else "Unknown",
             role=job.title if job else "Unknown",
             match_score=0.0,
-            eligibility_status="PASS",
+            eligibility_status="UNKNOWN",
             policy_applied=appr.policy_applied,
             status=appr.status,
             created_at=appr.created_at
@@ -382,16 +401,17 @@ class ApplicationService:
     async def list_applications(session: AsyncSession) -> List[ApplicationTrackerItem]:
         """List all tracked applications."""
         query = (
-            select(Application, Job, MatchResult)
+            select(Application, Job, MatchResult, ApprovalRequest.status)
             .join(Job, Application.job_id == Job.id)
             .outerjoin(MatchResult, Job.id == MatchResult.job_id)
+            .outerjoin(ApprovalRequest, ApprovalRequest.draft_id == Application.draft_id)
             .order_by(desc(Application.created_at))
         )
         res = await session.execute(query)
         rows = res.all()
 
         items = []
-        for app_rec, job, mr in rows:
+        for app_rec, job, mr, approval_status in rows:
             items.append(
                 ApplicationTrackerItem(
                     id=app_rec.id,
@@ -404,6 +424,7 @@ class ApplicationService:
                     job_title=job.title,
                     job_url=job.url,
                     status=app_rec.status,
+                    approval_status=approval_status,
                     match_score=mr.overall_score if mr else None,
                     submission_method=app_rec.submission_method,
                     submission_result=app_rec.submission_result,

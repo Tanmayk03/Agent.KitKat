@@ -19,11 +19,11 @@ It supports two primary operating modes:
 | Feature | Description |
 |---|---|
 | **Zero-Budget Local AI** | Powered entirely by local [Ollama](https://ollama.ai) running `qwen2.5:1.5b` at `http://127.0.0.1:11434`. Zero OpenAI/Claude API costs. |
-| **Ground Truth Profile** | Candidate profile (Harshit Sharma, B.Tech CS & DS, SRM University Delhi NCR, CGPA 8.44, Batch 2027). Skills remain unverified until verified by uploaded resume. Zero hallucinations. |
+| **Ground Truth Profile** | Your profile is entered on the Profile page (or seeded from a git-ignored `profile_seed.json`). Nothing personal is hardcoded. Skills stay unverified until they are found in an uploaded resume. |
 | **Deterministic Eligibility Engine** | Classifies degree, graduation batch, CGPA, work mode, and location strictly as `PASS`, `FAIL`, or `UNKNOWN`. Unknowns never pass; hard failures strictly override match scores. |
 | **5-Factor Weighted Resume Matcher** | Transparent breakdown: Skills (35%), Education & Graduation (20%), Projects & Experience (20%), Role Relevance (15%), Location (10%). |
 | **Tailored Application Preparation** | Synthesizes customized cover letters grounded in resume facts, formulates ATS screening answers, and maps standard form inputs. |
-| **3 Submission Policies** | **Policy A:** Manual Approval (queue for candidate sign-off). **Policy B:** Pre-authorized (submits if score ≥ 75%, PASS, zero unfilled required fields). **Policy C:** Prepare Only. |
+| **Human-approved submission** | **Manual Approval** (default) or **Prepare Only**. Nothing is submitted without your approval *and* a final per-application confirmation; the legacy "pre-authorized" policy is disabled. |
 | **Playwright Browser Automation** | Auto-fills contact info, education, work auth, uploads active PDF resume, pastes cover letter, and verifies positive website receipt. |
 | **Zero-Bypass Safety Compliance** | Immediately pauses upon encountering CAPTCHAs, Cloudflare Turnstiles, login walls, or sensitive legal declarations. Never attempts illegal bypass. |
 | **Global Emergency Stop** | Instant kill-switch (`POST /api/browser/emergency-stop`) available in the dashboard navbar to cancel browser sessions instantly. |
@@ -147,7 +147,7 @@ Or run individual services:
 - **Production UI (FastAPI Mounted):** [http://127.0.0.1:8000/ui](http://127.0.0.1:8000/ui)
 - **Interactive Swagger Docs:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - **System Health Endpoint:** [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
-- **iPhone PWA (Local Wi-Fi):** `http://<your-lan-ip>:5173` (e.g. `http://172.20.10.4:5173`)
+- **iPhone (Local Wi-Fi):** `http://<your-lan-ip>:5173` (e.g. `http://172.20.10.4:5173`). The backend itself listens on 127.0.0.1 only; the Vite dev server proxies `/api`. Note: over plain `http://` on a LAN IP, iOS does not run service workers, so offline caching is unavailable; "Add to Home Screen" still works.
 
 ---
 
@@ -163,25 +163,15 @@ Or run individual services:
 
 ## 🧪 Verification & Testing
 
-Every capability has been thoroughly tested with dedicated, automated end-to-end integration suites. To execute all 10 test suites:
+### Test status
+The previous "10/10 suites 100% PASS" table was not accurate. Current, executed results are in
+`PROGRESS.md` (Stage 2) and the evidence-based feature status is in `FEATURE_STATUS.md`.
 
 ```powershell
-.\run_all_tests.ps1
+.\venv\Scripts\python.exe -m pytest -q     # deterministic regression suite (mocks Ollama + job APIs)
+.\run_all_tests.ps1                          # pytest + legacy phase scripts (Ollama / internet needed for some)
 ```
-
-### Test Suite Catalog:
-| Test Suite | Purpose & Coverage | Status |
-|---|---|---|
-| `test_phase1.py` | Local Ollama AI integration & health check | ✅ 100% PASS |
-| `test_phase2.py` | Profile CRUD & PDF/DOCX resume skill verification | ✅ 100% PASS |
-| `test_phase3.py` | Mode B Manual Job Analysis (URL scraping, text parsing) | ✅ 100% PASS |
-| `test_phase4.py` | Deterministic eligibility & 5-factor weighted matching | ✅ 100% PASS |
-| `test_phase5.py` | Cover letter drafting & 3 submission policy workflows | ✅ 100% PASS |
-| `test_phase6.py` | Playwright browser form autofill, upload & zero-bypass | ✅ 100% PASS |
-| `test_phase7.py` | Multi-source discovery, 100% duplicate suppression & scheduler | ✅ 100% PASS |
-| `test_phase8.py` | React 19 frontend bundle & API integration | ✅ 100% PASS |
-| `test_phase9.py` | iPhone PWA manifest, service worker & LAN discovery | ✅ 100% PASS |
-| `test_master_e2e.py` | **Master 11-Stage End-to-End Simulation** | ✅ 100% PASS |
+All tests use a throwaway database (`tests/_isolation.py`); they never touch `storage/agent_kitkat.db`.
 
 ---
 

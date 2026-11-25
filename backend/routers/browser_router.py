@@ -47,7 +47,8 @@ async def run_browser_automation(
         db=db,
         draft_id=draft_id,
         auto_submit=payload.auto_submit,
-        headless=payload.headless
+        headless=payload.headless,
+        confirm_submit=payload.confirm_submit,
     )
 
 

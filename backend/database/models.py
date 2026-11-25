@@ -31,20 +31,13 @@ class UserProfile(Base):
     full_name = Column(String(255), default="")
     email = Column(String(255), default="")
     phone = Column(String(50), default="")
-    location = Column(String(255), default="India")
+    location = Column(String(255), default="")
     linkedin_url = Column(String(500), default="")
     github_url = Column(String(500), default="")
     portfolio_url = Column(String(500), default="")
 
     # Education (stored as structured JSON)
-    education = Column(JSON, default=lambda: {
-        "degree": "B.Tech",
-        "specialization": "Computer Science and Data Science",
-        "college": "SRM University, Delhi NCR",
-        "cgpa": 8.44,
-        "graduation": "May 2027",
-        "graduation_year": 2027
-    })
+    education = Column(JSON, default=dict)  # filled by you / your resume; never hardcoded
 
     # Preferences
     preferred_roles = Column(JSON, default=lambda: [
@@ -62,19 +55,12 @@ class UserProfile(Base):
         "Noida",
         "Delhi NCR"
     ])
-    expected_stipend = Column(String(100), default="Market Rate / Negotiable")
+    expected_stipend = Column(String(100), default="")
     work_mode = Column(String(50), default="Any")  # Remote, Hybrid, Onsite, Any
 
     # Skills tracking: verified via resume vs unverified
     verified_skills = Column(JSON, default=list)
-    unverified_skills = Column(JSON, default=lambda: [
-        "Python",
-        "React",
-        "Java",
-        "JavaScript",
-        "Node.js",
-        "Web development"
-    ])
+    unverified_skills = Column(JSON, default=list)
 
     # Portfolio & Experience
     projects = Column(JSON, default=list)
@@ -86,8 +72,9 @@ class UserProfile(Base):
         "daily_search_time": "09:00",
         "max_applications_per_day": 5,
         "min_match_score": 75,
-        "submission_policy": "manual_approval",  # manual_approval, pre_authorized, prepare_only
-        "search_frequency": "once_daily"
+        "submission_policy": "manual_approval",  # manual_approval or prepare_only (pre_authorized is treated as manual)
+        "search_frequency": "once_daily",
+        "scheduler_enabled": False
     })
 
     # Active Resume pointer
@@ -154,6 +141,9 @@ class Job(Base):
     experience_required = Column(String(255), nullable=True)
     salary_stipend = Column(String(255), nullable=True)
     deadline = Column(String(100), nullable=True)
+    employment_type = Column(String(100), nullable=True)
+    posted_at = Column(String(40), nullable=True)   # ISO-8601 as published by the source; None if not provided
+    fetched_at = Column(DateTime, nullable=True)     # when Agent KitKat ingested it
 
     # Full text & raw metadata
     raw_text = Column(Text, default="")
@@ -188,6 +178,8 @@ class EligibilityResult(Base):
     location_details = Column(String(500), default="")
     work_mode_status = Column(String(20), default="PASS")
     work_mode_details = Column(String(500), default="")
+    experience_status = Column(String(20), nullable=True)
+    experience_details = Column(String(500), nullable=True)
 
     rejection_reasons = Column(JSON, default=list)
     unverified_requirements = Column(JSON, default=list)

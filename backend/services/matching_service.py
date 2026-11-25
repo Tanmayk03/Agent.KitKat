@@ -81,6 +81,8 @@ class MatchingService:
             existing_el.location_details = el.location.details
             existing_el.work_mode_status = el.work_mode.status
             existing_el.work_mode_details = el.work_mode.details
+            existing_el.experience_status = el.experience_level.status if el.experience_level else None
+            existing_el.experience_details = el.experience_level.details if el.experience_level else None
             existing_el.rejection_reasons = el.rejection_reasons
             existing_el.unverified_requirements = el.unverified_requirements
         else:
@@ -98,6 +100,8 @@ class MatchingService:
                 location_details=el.location.details,
                 work_mode_status=el.work_mode.status,
                 work_mode_details=el.work_mode.details,
+                experience_status=el.experience_level.status if el.experience_level else None,
+                experience_details=el.experience_level.details if el.experience_level else None,
                 rejection_reasons=el.rejection_reasons,
                 unverified_requirements=el.unverified_requirements
             )
@@ -184,6 +188,8 @@ class MatchingService:
             cgpa=RequirementCheck(status=el.cgpa_status, details=el.cgpa_details),
             location=RequirementCheck(status=el.location_status, details=el.location_details),
             work_mode=RequirementCheck(status=el.work_mode_status, details=el.work_mode_details),
+            experience_level=RequirementCheck(status=el.experience_status, details=el.experience_details or "")
+            if el.experience_status else None,
             rejection_reasons=el.rejection_reasons or [],
             unverified_requirements=el.unverified_requirements or []
         )
@@ -222,7 +228,9 @@ class MatchingService:
             .order_by(desc(MatchResult.overall_score))
         )
         result = await session.execute(query)
-        rows = result.all()
+        # Hard eligibility outranks score: PASS first, then UNKNOWN (needs verification), then FAIL.
+        tier = {"PASS": 0, "UNKNOWN": 1, "FAIL": 2}
+        rows = sorted(result.all(), key=lambda r: (tier.get(r[2].overall_status, 1), -(r[1].overall_score or 0)))
 
         rankings: List[JobRankingItem] = []
         for job, mr, el in rows:

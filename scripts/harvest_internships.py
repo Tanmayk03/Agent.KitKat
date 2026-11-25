@@ -107,5 +107,16 @@ async def main():
         print("HARVEST COMPLETE & VERIFIED")
         print("==================================================")
 
+def _require_wipe_confirmation():
+    """This script DELETES all jobs, drafts, approvals and application history before harvesting."""
+    import sys as _sys
+    if "--wipe-my-data" not in _sys.argv:
+        print("Refusing to run: this script deletes ALL jobs, drafts, approvals and tracked applications.\n"
+              "Use the dashboard's 'Run discovery' instead (it keeps your data and skips duplicates).\n"
+              "If you really want a wipe, back up storage/agent_kitkat.db and re-run with --wipe-my-data.")
+        _sys.exit(2)
+
+
 if __name__ == "__main__":
+    _require_wipe_confirmation()
     asyncio.run(main())

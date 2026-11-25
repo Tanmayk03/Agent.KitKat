@@ -5,8 +5,11 @@ detects and skips duplicates, runs deterministic eligibility verification,
 performs resume matching, and triggers application preparation pipelines.
 """
 
+import re
+import time
 import uuid
 import logging
+from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,8 +23,8 @@ from backend.agents.job_reader import JobReaderAgent
 from backend.agents.eligibility_agent import EligibilityAgent
 from backend.agents.matching_agent import MatchingAgent
 from backend.tools.duplicate_checker import DuplicateChecker
-from backend.tools.job_discovery_sources import DISCOVERY_SOURCES
-from backend.schemas.discovery import DiscoveryRunResult, DiscoveredJobItem, SourceStatusItem
+from backend.tools.job_discovery_sources import DISCOVERY_SOURCES, INDIA_LOCATION_PATTERNS, AdzunaDiscoverySource
+from backend.schemas.discovery import DiscoveryRunResult, DiscoveredJobItem, SourceStatusItem, SourceRunResult
 
 logger = logging.getLogger("agent_kitkat.discovery_service")
 
@@ -40,8 +43,7 @@ class DiscoveryService:
                 is_conf = True
                 desc = "Live Verified Tech Internships Feed (Official PittCSC / Simplify dataset - 1400+ roles)."
             elif src.name == "adzuna":
-                import os
-                is_conf = bool(os.getenv("ADZUNA_APP_ID") and os.getenv("ADZUNA_APP_KEY"))
+                is_conf = AdzunaDiscoverySource.is_configured()
                 desc = "Adzuna Job Search API. Requires free APP_ID & APP_KEY."
             elif src.name == "arbeitnow":
                 is_conf = True
@@ -89,9 +91,16 @@ class DiscoveryService:
         logger.info("Starting autonomous job discovery. Keywords: %s | Locations: %s", search_keywords, search_locations)
 
         discovered_raw: List[Dict[str, Any]] = []
+        source_results: Dict[str, SourceRunResult] = {}
 
-        # 1. Fetch opportunities across all active discovery sources
+        # 1. Fetch from every source; one failing source never stops the others
         for source in DISCOVERY_SOURCES:
+            started = time.perf_counter()
+            if source.name == "adzuna" and not AdzunaDiscoverySource.is_configured():
+                source_results[source.name] = SourceRunResult(
+                    source_name=source.name, ok=True, skipped_reason="Not configured (ADZUNA_APP_ID / ADZUNA_APP_KEY)"
+                )
+                continue
             try:
                 src_results = await source.search(
                     keywords=search_keywords,
@@ -99,19 +108,24 @@ class DiscoveryService:
                     limit=limit_per_source
                 )
                 discovered_raw.extend(src_results)
+                source_results[source.name] = SourceRunResult(
+                    source_name=source.name, ok=True, fetched=len(src_results),
+                    duration_ms=round((time.perf_counter() - started) * 1000, 1),
+                )
             except Exception as e:
-                logger.error("Error fetching from source %s: %s", source.name, e)
+                logger.error("Source %s failed: %s", source.name, e)
+                source_results[source.name] = SourceRunResult(
+                    source_name=source.name, ok=False, error=str(e)[:500],
+                    duration_ms=round((time.perf_counter() - started) * 1000, 1),
+                )
 
-        # Geographic Priority: India roles first (Priority 0), then International Remote (Priority 1)
-        import re
-        from backend.tools.job_discovery_sources import INDIA_LOCATION_PATTERNS
-
+        # Geographic Priority: India roles first (0), then International Remote (1)
         def geo_priority_key(item: Dict[str, Any]) -> int:
             loc = (item.get("location") or "").lower()
             raw = (item.get("raw_text") or "").lower()[:400]
             if any(re.search(pat, loc) for pat in INDIA_LOCATION_PATTERNS) or any(re.search(pat, raw) for pat in INDIA_LOCATION_PATTERNS):
-                return 0  # India Domestic (Top Priority)
-            return 1  # International Remote
+                return 0
+            return 1
 
         discovered_raw.sort(key=geo_priority_key)
 
@@ -121,61 +135,74 @@ class DiscoveryService:
         eligible_count = 0
         shortlisted_count = 0
         prepared_count = 0
+        item_errors = 0
         processed_items: List[DiscoveredJobItem] = []
 
-        # 2. Duplicate Detection & Persistence
+        # 2. Duplicate detection & persistence (errors are isolated per listing)
         for item in discovered_raw:
-            url = item.get("url")
-            company = item.get("company", "Unknown")
-            title = item.get("title", "Unknown Role")
-            ext_id = item.get("job_id_external")
+            src_name = item.get("source") or "unknown"
+            src_stat = source_results.get(src_name)
+            try:
+                url = item.get("url")
+                company = item.get("company")
+                title = item.get("title")
+                if not company or not title or not url:
+                    continue
+                ext_id = item.get("job_id_external")
 
-            is_dup, reason = await DuplicateChecker.check_duplicate(
-                db=db,
-                url=url,
-                company=company,
-                title=title,
-                external_id=ext_id
-            )
+                is_dup, reason = await DuplicateChecker.check_duplicate(
+                    db=db, url=url, company=company, title=title,
+                    external_id=ext_id, source=src_name, location=item.get("location"),
+                )
+                if is_dup:
+                    duplicates_skipped += 1
+                    if src_stat:
+                        src_stat.duplicates += 1
+                    logger.info("Skipping duplicate: %s at %s (%s)", title, company, reason)
+                    continue
 
-            if is_dup:
-                duplicates_skipped += 1
-                logger.info("Skipping duplicate: %s at %s (%s)", title, company, reason)
+                job_obj = Job(
+                    id=str(uuid.uuid4()),
+                    company=company,
+                    title=title,
+                    url=url,
+                    location=item.get("location") or "Not stated",
+                    work_mode=item.get("work_mode") or "Unknown",
+                    source=src_name,
+                    job_id_external=ext_id,
+                    salary_stipend=item.get("salary_stipend"),
+                    employment_type=item.get("employment_type"),
+                    posted_at=item.get("posted_at"),
+                    fetched_at=datetime.utcnow(),
+                    description=item.get("description", ""),
+                    raw_text=item.get("raw_text") or f"{title} at {company}",
+                    status="discovered"
+                )
+
+                # Deterministic requirement extraction (no LLM in the bulk path)
+                extracted = JobReaderAgent.extract_deterministic_features(job_obj.raw_text, title=title)
+                job_obj.required_degree = extracted.get("required_degree")
+                job_obj.graduation_eligibility = extracted.get("graduation_eligibility", [])
+                job_obj.minimum_cgpa = extracted.get("minimum_cgpa")
+                job_obj.required_skills = extracted.get("required_skills", [])
+                job_obj.experience_required = extracted.get("experience_required")
+
+                db.add(job_obj)
+                await db.commit()
+                await db.refresh(job_obj)
+                new_saved += 1
+                if src_stat:
+                    src_stat.new_saved += 1
+            except Exception as e:
+                await db.rollback()
+                item_errors += 1
+                logger.exception("Could not store listing from %s: %s", src_name, e)
                 continue
-
-            # 3. Save New Opportunity
-            job_obj = Job(
-                id=str(uuid.uuid4()),
-                company=company,
-                title=title,
-                url=url,
-                location=item.get("location", "Not Specified"),
-                work_mode=item.get("work_mode", "Remote"),
-                source=item.get("source", "public_api"),
-                job_id_external=ext_id,
-                salary_stipend=item.get("salary_stipend"),
-                description=item.get("description", ""),
-                raw_text=item.get("raw_text", f"{title} at {company}"),
-                status="discovered"
-            )
-
-            # Extract requirements using fast deterministic rules and known skills
-            extracted = JobReaderAgent.extract_deterministic_features(job_obj.raw_text)
-            job_obj.required_degree = extracted.get("required_degree")
-            job_obj.graduation_eligibility = extracted.get("graduation_eligibility", [])
-            job_obj.minimum_cgpa = extracted.get("minimum_cgpa")
-            job_obj.required_skills = extracted.get("required_skills", [])
-            job_obj.experience_required = extracted.get("experience_required", "Fresher / Intern")
-
-            db.add(job_obj)
-            await db.commit()
-            await db.refresh(job_obj)
-            new_saved += 1
 
             elig_status = None
             match_score = None
 
-            # 4. Auto-Evaluate (Eligibility & Resume Matching)
+            # 3. Auto-evaluate (eligibility & matching)
             if auto_evaluate:
                 try:
                     eval_res = await MatchingService.evaluate_job(db, job_obj.id)
@@ -184,19 +211,22 @@ class DiscoveryService:
 
                     if elig_status == "PASS":
                         eligible_count += 1
-                    if match_score >= min_score:
-                        shortlisted_count += 1
+                        if match_score >= min_score:
+                            shortlisted_count += 1
 
-                    # 5. Auto-Prepare Application if Qualifying
+                    # 4. Auto-prepare drafts only (never submits) for PASS + score >= threshold
                     if auto_prepare_applications and elig_status == "PASS" and match_score >= min_score:
                         if prepared_count < max_daily_apps:
                             try:
                                 draft = await ApplicationService.prepare_application(db, job_obj.id)
                                 prepared_count += 1
-                                logger.info("Application prepared for %s at %s (Draft: %s)", title, company, draft.id[:8])
+                                logger.info("Application drafted for %s at %s (Draft: %s)", title, company, draft.id[:8])
                             except Exception as e:
+                                await db.rollback()
                                 logger.error("Failed to prepare application draft for job %s: %s", job_obj.id, e)
                 except Exception as e:
+                    await db.rollback()
+                    item_errors += 1
                     logger.error("Error evaluating discovered job %s: %s", job_obj.id, e)
 
             processed_items.append(DiscoveredJobItem(
@@ -222,5 +252,8 @@ class DiscoveryService:
             eligible_count=eligible_count,
             shortlisted_count=shortlisted_count,
             prepared_count=prepared_count,
+            failed_sources=sum(1 for r in source_results.values() if not r.ok),
+            item_errors=item_errors,
+            source_results=list(source_results.values()),
             jobs=processed_items
         )

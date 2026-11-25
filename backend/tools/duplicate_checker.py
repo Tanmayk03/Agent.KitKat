@@ -48,16 +48,32 @@ class DuplicateChecker:
         t = re.sub(r"\s+", " ", t).strip()
         return t
 
-    @staticmethod
-    def normalize_url(url: str) -> str:
-        """Strip tracking parameters, query strings, and trailing slashes from URLs."""
+    # Query parameters that only track campaigns/referrers and never identify a job
+    TRACKING_PARAMS = {
+        "ref", "referrer", "source", "src", "utm_source", "utm_medium", "utm_campaign",
+        "utm_term", "utm_content", "gclid", "fbclid", "mc_cid", "mc_eid", "trk", "trackingid",
+    }
+
+    @classmethod
+    def normalize_url(cls, url: str) -> str:
+        """
+        Normalise a job URL for comparison: lowercase scheme/host, drop fragment, trailing slash
+        and tracking parameters. Identifying query parameters (e.g. ?id=123, ?gh_jid=...) are kept,
+        because many ATS pages differ only by query string.
+        """
         if not url:
             return ""
         try:
             parsed = urllib.parse.urlparse(url.strip())
-            # Reconstruct URL without query string or fragment
-            clean = f"{parsed.scheme}://{parsed.netloc}{parsed.path}".rstrip("/")
-            return clean.lower()
+            query = [
+                (k, v) for k, v in urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+                if k.lower() not in cls.TRACKING_PARAMS and not k.lower().startswith("utm_")
+            ]
+            query.sort()
+            clean = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}{parsed.path.rstrip('/')}"
+            if query:
+                clean += "?" + urllib.parse.urlencode(query)
+            return clean
         except Exception:
             return url.strip().rstrip("/").lower()
 
@@ -69,47 +85,46 @@ class DuplicateChecker:
         company: Optional[str] = None,
         title: Optional[str] = None,
         external_id: Optional[str] = None,
+        source: Optional[str] = None,
+        location: Optional[str] = None,
     ) -> Tuple[bool, Optional[str]]:
         """
         Check if an opportunity already exists in the database.
-        Returns: (is_duplicate: bool, reason: Optional[str])
+        Order: (source, external_id) -> normalised URL -> normalised company + title (+ location when both known).
+        Returns: (is_duplicate, reason)
         """
-        # 1. External ID check (if provided by API source)
-        if external_id:
-            ext_stmt = select(Job).where(Job.job_id_external == external_id)
-            ext_res = await db.execute(ext_stmt)
-            match = ext_res.scalar_one_or_none()
-            if match:
-                return True, f"Duplicate external job ID '{external_id}' (Company: {match.company})"
+        # 1. External ID, scoped to the same source (IDs are only unique within one source)
+        if external_id and source:
+            ext_res = await db.execute(
+                select(Job.company).where(Job.job_id_external == external_id, Job.source == source).limit(1)
+            )
+            match_company = ext_res.scalars().first()
+            if match_company is not None:
+                return True, f"Same {source} job ID '{external_id}' already stored (Company: {match_company})"
 
-        # 2. Clean URL match check
+        # 2. Normalised URL
         if url:
             norm_url = cls.normalize_url(url)
-            # Check all jobs with URLs
-            url_stmt = select(Job).where(Job.url.isnot(None))
-            url_res = await db.execute(url_stmt)
-            all_jobs = url_res.scalars().all()
-            for j in all_jobs:
-                if j.url and cls.normalize_url(j.url) == norm_url:
-                    return True, f"Duplicate application URL matches job '{j.title}' at {j.company}"
+            rows = await db.execute(select(Job.url, Job.title, Job.company).where(Job.url.isnot(None)))
+            for j_url, j_title, j_company in rows.all():
+                if cls.normalize_url(j_url) == norm_url:
+                    return True, f"Same URL as '{j_title}' at {j_company}"
 
-        # 3. Company & Role Title Match Check
+        # 3. Company + title (+ location when both sides have one)
         if company and title:
             norm_comp = cls.normalize_company(company)
             norm_tit = cls.normalize_title(title)
-
+            norm_loc = cls.normalize_title(location or "")
             if norm_comp and norm_tit:
-                # Query jobs with similar company
-                comp_stmt = select(Job)
-                res = await db.execute(comp_stmt)
-                jobs = res.scalars().all()
-
-                for j in jobs:
-                    if j.company and j.title:
-                        db_comp = cls.normalize_company(j.company)
-                        db_tit = cls.normalize_title(j.title)
-                        # Match if company names match and titles match
-                        if db_comp and db_comp == norm_comp and db_tit == norm_tit:
-                            return True, f"Duplicate listing: '{j.title}' at '{j.company}' already in database (Status: {j.status})"
+                rows = await db.execute(select(Job.company, Job.title, Job.location, Job.status))
+                for j_company, j_title, j_location, j_status in rows.all():
+                    if not j_company or not j_title:
+                        continue
+                    if cls.normalize_company(j_company) != norm_comp or cls.normalize_title(j_title) != norm_tit:
+                        continue
+                    db_loc = cls.normalize_title(j_location or "")
+                    if norm_loc and db_loc and norm_loc != db_loc:
+                        continue  # same role title in a different city is a different opening
+                    return True, f"'{j_title}' at '{j_company}' already in database (Status: {j_status})"
 
         return False, None

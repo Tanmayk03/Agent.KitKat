@@ -45,6 +45,18 @@ class DiscoveredJobItem(BaseModel):
     is_duplicate: bool = False
 
 
+class SourceRunResult(BaseModel):
+    """What one source returned during a discovery run."""
+    source_name: str
+    ok: bool
+    fetched: int = 0
+    new_saved: int = 0
+    duplicates: int = 0
+    error: Optional[str] = None
+    duration_ms: float = 0.0
+    skipped_reason: Optional[str] = None
+
+
 class DiscoveryRunResult(BaseModel):
     """Result of an autonomous discovery cycle."""
     total_discovered: int
@@ -53,6 +65,9 @@ class DiscoveryRunResult(BaseModel):
     eligible_count: int
     shortlisted_count: int
     prepared_count: int
+    failed_sources: int = 0
+    item_errors: int = 0
+    source_results: List[SourceRunResult] = Field(default_factory=list)
     jobs: List[DiscoveredJobItem] = Field(default_factory=list)
 
 
@@ -68,3 +83,8 @@ class SchedulerStatusResponse(BaseModel):
     is_running: bool
     scheduled_time: str
     next_run_time: Optional[str] = None
+    cycle_in_progress: bool = False
+    last_run_started_at: Optional[str] = None
+    last_run_finished_at: Optional[str] = None
+    last_run_status: Optional[str] = None
+    last_run_error: Optional[str] = None

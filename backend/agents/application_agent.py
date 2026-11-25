@@ -26,8 +26,28 @@ STRICT RULES:
 4. Output ONLY the body of the cover letter with no preamble."""
 
 
+NEEDS_INPUT = "NEEDS_YOUR_INPUT"
+
+
+def _project_names(profile: UserProfile) -> List[str]:
+    names = []
+    for p in profile.projects or []:
+        if isinstance(p, dict):
+            name = (p.get("name") or p.get("title") or "").strip()
+        else:
+            name = str(p).strip()
+        if name:
+            names.append(name)
+    return names
+
+
 class ApplicationAgent:
-    """Agent that prepares tailored application materials and maps profile fields."""
+    """Agent that prepares tailored application materials and maps profile fields.
+
+    Grounding rule: every factual statement must come from the stored profile, the
+    active resume's extracted skills (matching_skills) or the job posting. When a fact
+    is not available, the answer is NEEDS_YOUR_INPUT instead of a plausible guess.
+    """
 
     @classmethod
     async def generate_cover_letter(
@@ -37,30 +57,35 @@ class ApplicationAgent:
         matching_skills: List[str]
     ) -> str:
         """
-        Drafts a tailored cover letter using Qwen2.5 1.5B grounded on verified profile facts.
-        Falls back to a structured template if Ollama is unavailable.
+        Drafts a tailored cover letter using the local model, grounded on verified profile facts.
+        Falls back to a fact-only template if Ollama is unavailable.
         """
-        candidate_name = profile.full_name or "Candidate"
+        candidate_name = (profile.full_name or "").strip() or "[Your name]"
         education = profile.education or {}
-        degree = education.get("degree", "B.Tech")
-        specialization = education.get("specialization", "Computer Science and Data Science")
-        college = education.get("college", "SRM University, Delhi NCR")
-        cgpa = education.get("cgpa", 8.44)
-        grad_year = education.get("graduation_year", 2027)
+        degree = education.get("degree")
+        specialization = education.get("specialization")
+        college = education.get("college")
+        cgpa = education.get("cgpa")
+        grad_year = education.get("graduation_year")
+        projects = _project_names(profile)[:3]
 
-        skills_list_str = ", ".join(matching_skills[:6]) if matching_skills else "Python, Web Development"
+        facts = [f"- Name: {candidate_name}"]
+        if degree or specialization or college:
+            facts.append(f"- Education: {degree or ''} {('in ' + specialization) if specialization else ''} {(', ' + college) if college else ''}".strip())
+        if cgpa:
+            facts.append(f"- CGPA: {cgpa}")
+        if grad_year:
+            facts.append(f"- Graduating: {grad_year}")
+        facts.append(f"- Verified skills relevant to this job: {', '.join(matching_skills[:6]) if matching_skills else 'none verified'}")
+        if projects:
+            facts.append(f"- Projects (names only): {', '.join(projects)}")
 
-        prompt = f"""Candidate Profile:
-- Name: {candidate_name}
-- Education: {degree} in {specialization}, {college} (CGPA: {cgpa}, Graduating: {grad_year})
-- Verified Relevant Skills: {skills_list_str}
-
-Job Details:
-- Company: {job.company}
-- Role: {job.title}
-- Location: {job.location} ({job.work_mode})
-
-Write a tailored cover letter for this internship role."""
+        prompt = (
+            "Candidate facts (the ONLY facts you may use):\n" + "\n".join(facts) +
+            f"\n\nJob:\n- Company: {job.company}\n- Role: {job.title}\n\n"
+            "Write a tailored cover letter. Do not mention any skill, project, employer, metric or "
+            "experience that is not listed above."
+        )
 
         try:
             ai_response = await ollama_service.generate_response(
@@ -74,15 +99,26 @@ Write a tailored cover letter for this internship role."""
         except Exception as e:
             logger.warning("Cover letter generation via Ollama fell back to template: %s", str(e))
 
-        # Grounded deterministic fallback template
+        # Fact-only fallback template (no claims beyond the stored profile)
+        edu_bits = []
+        if degree:
+            edu_bits.append(f"a {degree} student" + (f" in {specialization}" if specialization else ""))
+        if college:
+            edu_bits.append(f"at {college}")
+        extras = []
+        if cgpa:
+            extras.append(f"CGPA {cgpa}")
+        if grad_year:
+            extras.append(f"graduating {grad_year}")
+        intro = ("I am " + " ".join(edu_bits) + (f" ({', '.join(extras)})" if extras else "") + ".") if edu_bits else ""
+        skills_line = (f"My verified skills relevant to this role include {', '.join(matching_skills[:6])}. ") if matching_skills else ""
+        projects_line = (f"Relevant work includes {', '.join(projects)}. ") if projects else ""
         return (
             f"Dear Hiring Team at {job.company},\n\n"
-            f"I am writing to express my strong enthusiasm for the {job.title} position. "
-            f"As a {degree} student in {specialization} at {college} (CGPA: {cgpa}, Class of {grad_year}), "
-            f"I have developed solid technical foundations and practical engineering experience.\n\n"
-            f"With proficiency in {skills_list_str}, I have built robust projects and actively practice software development best practices. "
-            f"I am eager to apply my technical problem-solving skills to contribute effectively to {job.company}'s engineering objectives.\n\n"
-            f"Thank you for considering my application. I look forward to the opportunity to discuss how my background and enthusiasm align with your team's needs.\n\n"
+            f"I would like to apply for the {job.title} position. {intro}\n\n"
+            f"{skills_line}{projects_line}"
+            f"I would welcome the chance to discuss how I can contribute to {job.company}.\n\n"
+            f"Thank you for your consideration.\n\n"
             f"Sincerely,\n{candidate_name}"
         )
 
@@ -94,75 +130,84 @@ Write a tailored cover letter for this internship role."""
         matching_skills: List[str]
     ) -> Dict[str, str]:
         """
-        Prepares answers to common application screening questions grounded on verified facts.
+        Drafts answers to common screening questions using only stored facts.
+        Anything the agent cannot ground is returned as NEEDS_YOUR_INPUT.
         """
-        education = profile.education or {}
-        degree = education.get("degree", "B.Tech")
-        college = education.get("college", "SRM University, Delhi NCR")
-        stipend_pref = profile.expected_stipend or "Market Rate / Competitive"
-        skills_str = ", ".join(matching_skills[:4]) if matching_skills else "Python, Web Development"
+        prefs = profile.application_preferences or {}
+        projects = [p for p in (profile.projects or []) if p]
+        first_project = projects[0] if projects else None
+
+        if matching_skills:
+            why_join = (
+                f"The {job.title} role at {job.company} lines up with skills I have used: "
+                f"{', '.join(matching_skills[:4])}. [Add one specific reason you want to join {job.company}.]"
+            )
+        else:
+            why_join = NEEDS_INPUT
+
+        if isinstance(first_project, dict) and (first_project.get("name") or first_project.get("title")):
+            name = first_project.get("name") or first_project.get("title")
+            desc = (first_project.get("description") or "").strip()
+            stack = first_project.get("tech_stack") or []
+            relevant_project = f"{name}" + (f": {desc}" if desc else "") + (f" (Tech: {', '.join(stack)})" if stack else "")
+        elif isinstance(first_project, str) and first_project.strip():
+            relevant_project = first_project.strip()
+        else:
+            relevant_project = NEEDS_INPUT
 
         return {
-            "why_join": (
-                f"I am deeply inspired by {job.company}'s work and see the {job.title} role as a tremendous opportunity "
-                f"to contribute my technical skills in {skills_str} while solving real-world challenges."
-            ),
-            "relevant_project": (
-                f"As a {degree} student at {college}, I built autonomous and web development projects using Python, React, and SQL, "
-                f"focusing on clean architecture, modular APIs, and efficient data processing."
-            ),
-            "availability": (
-                "Available immediately for intern positions with flexible working hours for remote or local onsite requirements."
-            ),
-            "salary_expectation": stipend_pref
+            "why_join": why_join,
+            "relevant_project": relevant_project,
+            "availability": str(prefs.get("availability") or NEEDS_INPUT),
+            "salary_expectation": (profile.expected_stipend or "").strip() or NEEDS_INPUT,
         }
 
     @classmethod
     def map_form_fields(cls, profile: UserProfile) -> Dict[str, Any]:
         """
-        Maps verified profile data to standard ATS and application form fields.
+        Maps stored profile data to standard ATS form fields. Missing data stays empty.
+        Work authorisation / sponsorship / demographic questions are never pre-answered.
         """
         full_name = (profile.full_name or "").strip()
         name_parts = full_name.split() if full_name else []
-        first_name = name_parts[0] if name_parts else ""
-        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
-
         education = profile.education or {}
+
+        def ed(key: str) -> str:
+            val = education.get(key)
+            return "" if val in (None, "") else str(val)
 
         return {
             "full_name": full_name,
-            "first_name": first_name,
-            "last_name": last_name,
+            "first_name": name_parts[0] if name_parts else "",
+            "last_name": " ".join(name_parts[1:]) if len(name_parts) > 1 else "",
             "email": profile.email or "",
             "phone": profile.phone or "",
-            "location": profile.location or "India",
+            "location": profile.location or "",
             "linkedin_url": profile.linkedin_url or "",
             "github_url": profile.github_url or "",
             "portfolio_url": profile.portfolio_url or "",
-            "degree": education.get("degree", "B.Tech"),
-            "major": education.get("specialization", "Computer Science and Data Science"),
-            "university": education.get("college", "SRM University, Delhi NCR"),
-            "cgpa": str(education.get("cgpa", 8.44)),
-            "graduation_year": str(education.get("graduation_year", 2027)),
-            "work_authorization": "Authorized to work in India",
-            "requires_sponsorship": "No"
+            "degree": ed("degree"),
+            "major": ed("specialization"),
+            "university": ed("college"),
+            "cgpa": ed("cgpa"),
+            "graduation_year": ed("graduation_year"),
         }
 
     @classmethod
     def identify_unanswered_questions(
         cls,
         profile: UserProfile,
-        mapped_fields: Dict[str, Any]
+        mapped_fields: Dict[str, Any],
+        custom_answers: Optional[Dict[str, str]] = None,
     ) -> List[str]:
-        """
-        Detects missing essential fields or declarations requiring human confirmation.
-        """
-        unanswered = []
-        if not mapped_fields.get("full_name"):
-            unanswered.append("Candidate Full Name is missing in profile.")
-        if not mapped_fields.get("email"):
-            unanswered.append("Candidate Email address is missing in profile.")
-        if not mapped_fields.get("phone"):
-            unanswered.append("Candidate Phone number is missing in profile.")
-
+        """Lists everything that needs a human answer before this application can be sent."""
+        labels = {
+            "full_name": "Full name", "email": "Email address", "phone": "Phone number",
+            "degree": "Degree", "university": "University", "graduation_year": "Graduation year", "cgpa": "CGPA",
+        }
+        unanswered = [f"{label} is missing in your profile." for key, label in labels.items() if not mapped_fields.get(key)]
+        for key, value in (custom_answers or {}).items():
+            if value == NEEDS_INPUT:
+                unanswered.append(f"Screening answer '{key}' needs your input.")
+        unanswered.append("Work authorisation / visa sponsorship questions are never auto-answered; answer them yourself on the form.")
         return unanswered

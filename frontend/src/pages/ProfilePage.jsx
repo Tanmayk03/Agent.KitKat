@@ -21,13 +21,14 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
     linkedin_url: '',
     github_url: '',
     portfolio_url: '',
+    // Empty until loaded from your saved profile: nothing personal is hardcoded.
     education: {
-      degree: 'B.Tech',
-      specialization: 'Computer Science and Data Science',
-      college: 'SRM University, Delhi NCR',
-      cgpa: 8.53,
-      graduation: 'May 2027',
-      graduation_year: 2027,
+      degree: '',
+      specialization: '',
+      college: '',
+      cgpa: null,
+      graduation: '',
+      graduation_year: null,
     },
     preferred_roles: [],
     preferred_locations: [],
@@ -262,11 +263,11 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
               <input
                 type="number"
                 step="0.01"
-                value={formData.education.cgpa || 8.53}
+                value={formData.education.cgpa ?? ''}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    education: { ...formData.education, cgpa: parseFloat(e.target.value) || 0.0 },
+                    education: { ...formData.education, cgpa: e.target.value === '' ? null : parseFloat(e.target.value) },
                   })
                 }
                 className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 focus:outline-none focus:border-zinc-600 font-mono"
@@ -277,11 +278,11 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Graduation Year</label>
               <input
                 type="number"
-                value={formData.education.graduation_year || 2027}
+                value={formData.education.graduation_year ?? ''}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    education: { ...formData.education, graduation_year: parseInt(e.target.value) || 2027 },
+                    education: { ...formData.education, graduation_year: e.target.value === '' ? null : parseInt(e.target.value, 10) },
                   })
                 }
                 className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 focus:outline-none focus:border-zinc-600 font-mono"

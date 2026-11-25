@@ -10,6 +10,7 @@ import subprocess
 
 # Add project root to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import tests._isolation  # noqa: E402,F401  -- throwaway DB; never touches your real data
 
 
 def test_frontend_files_exist():

@@ -14,6 +14,7 @@ from backend.config import get_settings
 from backend.database.models import Resume, UserProfile
 from backend.services.profile_service import ProfileService
 from backend.tools.resume_parser import ResumeParser
+from backend.security import safe_upload_name, unique_path_in
 
 logger = logging.getLogger("agent_kitkat.resume_service")
 settings = get_settings()
@@ -32,25 +33,26 @@ class ResumeService:
         Save resume locally in storage/resumes, parse text, extract skills,
         and cross-verify against user profile unverified skills.
         """
-        ext = os.path.splitext(file_name)[1].lower()
-        if ext not in [".pdf", ".docx"]:
-            raise ValueError(f"Unsupported file format: {ext}. Only PDF and DOCX files are allowed.")
+        clean_name = safe_upload_name(file_name, [".pdf", ".docx"])  # strips any directory parts
+        ext = os.path.splitext(clean_name)[1].lower()
+        if len(file_bytes) > settings.MAX_UPLOAD_MB * 1024 * 1024:
+            raise ValueError(f"File is larger than {settings.MAX_UPLOAD_MB} MB.")
 
-        # Ensure storage directory exists
         os.makedirs(settings.RESUMES_DIR, exist_ok=True)
-
+        file_path = unique_path_in(settings.RESUMES_DIR, clean_name)
         resume_id = str(uuid.uuid4())
-        safe_filename = f"{resume_id}_{file_name.replace(' ', '_')}"
-        file_path = os.path.join(settings.RESUMES_DIR, safe_filename)
+        file_name = clean_name
 
-        # Write file securely to disk
         with open(file_path, "wb") as f:
             f.write(file_bytes)
-
         file_size = len(file_bytes)
 
-        # Parse text and segment sections
-        raw_text = ResumeParser.parse_file(file_path)
+        # Parse text and segment sections; never leave an orphaned file behind on failure
+        try:
+            raw_text = ResumeParser.parse_file(file_path)
+        except Exception:
+            os.remove(file_path)
+            raise
         sections = ResumeParser.segment_sections(raw_text)
         extracted_skills = ResumeParser.extract_skills(raw_text)
 

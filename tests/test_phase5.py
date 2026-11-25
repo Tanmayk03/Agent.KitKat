@@ -22,6 +22,7 @@ from sqlalchemy import delete
 
 # Ensure project root in sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import tests._isolation  # noqa: E402,F401  -- throwaway DB; never touches your real data
 
 from backend.main import app
 from backend.database.db import init_db, AsyncSessionLocal
@@ -184,9 +185,11 @@ async def run_phase5_tests():
         assert res_b.status_code == 200
         draft_b = res_b.json()
         print(f"Pre-authorized Draft Status: {draft_b['status']}")
-        assert draft_b["status"] == "auto_approved"
-        assert draft_b["policy_applied"] == "pre_authorized"
-        print("✅ Test 4 Passed: Eligible high-match job automatically pre-approved under policy B.")
+        # Stage 2 safety change: every submission needs an explicit per-application approval,
+        # so the legacy pre_authorized policy now queues for manual approval instead of auto-approving.
+        assert draft_b["status"] == "pending_approval"
+        assert draft_b["policy_applied"] == "manual_approval"
+        print("✅ Test 4 Passed: pre_authorized no longer bypasses human approval.")
 
         # ----------------------------------------------------
         # Test 5: Policy C (Prepare Only)

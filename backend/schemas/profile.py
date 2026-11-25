@@ -5,16 +5,23 @@ Pydantic schemas for personal career profile, education, skills, and preferences
 
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class EducationDetails(BaseModel):
-    degree: str = Field(default="B.Tech", description="Degree name")
-    specialization: str = Field(default="Computer Science and Data Science", description="Specialization/Major")
-    college: str = Field(default="SRM University, Delhi NCR", description="College/University name")
-    cgpa: float = Field(default=8.53, ge=0.0, le=10.0, description="CGPA out of 10")
-    graduation: str = Field(default="May 2027", description="Graduation month and year")
-    graduation_year: int = Field(default=2027, ge=2020, le=2035, description="Year of graduation")
+    """Your education. Empty values mean 'not provided yet' (eligibility then reports UNKNOWN)."""
+    degree: Optional[str] = Field(default=None, description="Degree name, e.g. B.Tech")
+    specialization: Optional[str] = Field(default=None, description="Specialization/Major")
+    college: Optional[str] = Field(default=None, description="College/University name")
+    cgpa: Optional[float] = Field(default=None, ge=0.0, le=10.0, description="CGPA out of 10 (as on your current resume)")
+    graduation: Optional[str] = Field(default=None, description="Graduation month and year")
+    graduation_year: Optional[int] = Field(default=None, ge=2000, le=2040, description="Year of graduation")
+    active_backlogs: Optional[int] = Field(default=None, ge=0, description="Number of active backlogs (None = not provided)")
+
+    @field_validator("cgpa", "graduation_year", "active_backlogs", mode="before")
+    @classmethod
+    def _blank_to_none(cls, v):
+        return None if v in ("", None) else v
 
 
 class ProjectItem(BaseModel):
@@ -49,6 +56,8 @@ class ApplicationPreferences(BaseModel):
         description="Policy: 'manual_approval', 'pre_authorized', or 'prepare_only'"
     )
     search_frequency: str = Field(default="once_daily", description="Daily search frequency")
+    scheduler_enabled: bool = Field(default=False, description="Whether the daily discovery schedule is on")
+    availability: Optional[str] = Field(default=None, description="Your availability (used verbatim in screening answers)")
 
 
 class UserProfileUpdate(BaseModel):
@@ -76,20 +85,20 @@ class UserProfileUpdate(BaseModel):
 
 class UserProfileResponse(BaseModel):
     id: int
-    full_name: str
-    email: str
-    phone: str
-    location: str
-    linkedin_url: str
-    github_url: str
-    portfolio_url: str
+    full_name: Optional[str] = ""
+    email: Optional[str] = ""
+    phone: Optional[str] = ""
+    location: Optional[str] = ""
+    linkedin_url: Optional[str] = ""
+    github_url: Optional[str] = ""
+    portfolio_url: Optional[str] = ""
     education: EducationDetails
-    preferred_roles: List[str]
-    preferred_locations: List[str]
-    expected_stipend: str
-    work_mode: str
-    verified_skills: List[str]
-    unverified_skills: List[str]
+    preferred_roles: List[str] = Field(default_factory=list)
+    preferred_locations: List[str] = Field(default_factory=list)
+    expected_stipend: Optional[str] = ""
+    work_mode: str = "Any"
+    verified_skills: List[str] = Field(default_factory=list)
+    unverified_skills: List[str] = Field(default_factory=list)
     projects: List[Union[ProjectItem, Dict[str, Any], str]] = Field(default_factory=list)
     work_experience: List[Union[WorkExperienceItem, Dict[str, Any], str]] = Field(default_factory=list)
     certifications: List[Union[CertificationItem, Dict[str, Any], str]] = Field(default_factory=list)

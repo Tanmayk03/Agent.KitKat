@@ -87,7 +87,7 @@ export const api = {
     const res = await fetch(`${BASE_URL}/api/jobs/analyze-text`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ raw_text: text, title, company }),
+      body: JSON.stringify({ text, title, company }),
     });
     return handleResponse(res);
   },
@@ -154,11 +154,13 @@ export const api = {
     return handleResponse(res);
   },
 
+  // decision: 'approve' | 'reject' (also accepts 'approved' / 'rejected')
   async decideApproval(approvalId, decision, notes = '') {
+    const action = decision.startsWith('approve') ? 'approve' : decision.startsWith('reject') ? 'reject' : decision;
     const res = await fetch(`${BASE_URL}/api/applications/approvals/${approvalId}/decide`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision, notes }),
+      body: JSON.stringify({ action, decision_notes: notes || null }),
     });
     return handleResponse(res);
   },
@@ -169,11 +171,13 @@ export const api = {
   },
 
   // Browser Automation
-  async runBrowserAutomation(draftId, autoSubmit = false) {
+  // autoSubmit=false: fill the form and take a screenshot only (safe default).
+  // autoSubmit=true is accepted by the server only for drafts you approved AND with confirmSubmit=true.
+  async runBrowserAutomation(draftId, autoSubmit = false, confirmSubmit = false) {
     const res = await fetch(`${BASE_URL}/api/browser/run/${draftId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auto_submit: autoSubmit, headless: true }),
+      body: JSON.stringify({ auto_submit: autoSubmit, confirm_submit: confirmSubmit, headless: true }),
     });
     return handleResponse(res);
   },

@@ -18,6 +18,7 @@ from sqlalchemy import select, delete
 
 # Add project root to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import tests._isolation  # noqa: E402,F401  -- throwaway DB; never touches your real data
 
 from backend.main import app
 from backend.config import get_settings
@@ -295,6 +296,11 @@ async def setup_test_db(base_url: str):
             status="approved"
         )
         session.add(draft_required)
+        await session.flush()
+
+        # Stage 2: submission requires an APPROVED approval request per draft
+        for d in (draft_standard, draft_captcha, draft_login, draft_required):
+            session.add(ApprovalRequest(id=str(uuid.uuid4()), job_id=d.job_id, draft_id=d.id, status="approved"))
 
         await session.commit()
 
@@ -348,7 +354,8 @@ async def run_phase6_tests():
         # Check that logs record field filling, radio checks, resume upload, cover letter
         logs_str = " ".join(data1["logs"])
         assert "first_name" in logs_str
-        assert "harshit.sharma@srm.edu" in logs_str
+        assert "Filled field 'email'" in logs_str
+        assert "harshit.sharma@srm.edu" not in logs_str  # personal values are no longer written to logs
         assert "Uploaded verified resume" in logs_str
         assert "tailored cover letter" in logs_str
         print(f"Pre-submit screenshot verified ({os.path.getsize(data1['pre_submit_screenshot'])} bytes)")
@@ -361,7 +368,7 @@ async def run_phase6_tests():
         print("\n[Test 2] Testing Application Form Auto-Submission & Confirmation (auto_submit=True)...")
         res2 = await client.post(
             f"/api/browser/run/{draft_std_id}",
-            json={"auto_submit": True, "headless": True}
+            json={"auto_submit": True, "confirm_submit": True, "headless": True}
         )
         assert res2.status_code == 200, f"Expected 200, got {res2.status_code}: {res2.text}"
         data2 = res2.json()
@@ -383,7 +390,7 @@ async def run_phase6_tests():
         print("\n[Test 3] Testing CAPTCHA / Anti-Bot Detection Safety Pause...")
         res3 = await client.post(
             f"/api/browser/run/{draft_cap_id}",
-            json={"auto_submit": True, "headless": True}
+            json={"auto_submit": True, "confirm_submit": True, "headless": True}
         )
         assert res3.status_code == 200
         data3 = res3.json()
@@ -399,7 +406,7 @@ async def run_phase6_tests():
         print("\n[Test 4] Testing Login Wall Detection Safety Pause...")
         res4 = await client.post(
             f"/api/browser/run/{draft_log_id}",
-            json={"auto_submit": True, "headless": True}
+            json={"auto_submit": True, "confirm_submit": True, "headless": True}
         )
         assert res4.status_code == 200
         data4 = res4.json()
@@ -414,7 +421,7 @@ async def run_phase6_tests():
         print("\n[Test 5] Testing Unfilled Required Field / Legal Declaration Safety Pause...")
         res5 = await client.post(
             f"/api/browser/run/{draft_req_id}",
-            json={"auto_submit": True, "headless": True}
+            json={"auto_submit": True, "confirm_submit": True, "headless": True}
         )
         assert res5.status_code == 200
         data5 = res5.json()

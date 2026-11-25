@@ -1,0 +1,23 @@
+{
+  "_comment": "Copy to profile_seed.json (git-ignored) to pre-fill a NEW profile on first start. Every field is optional; you can also just use the Profile page.",
+  "full_name": "Your Name",
+  "email": "you@example.com",
+  "phone": "+91-XXXXXXXXXX",
+  "location": "Delhi NCR, India",
+  "linkedin_url": "https://linkedin.com/in/your-handle",
+  "github_url": "https://github.com/your-handle",
+  "portfolio_url": "",
+  "education": {
+    "degree": "B.Tech",
+    "specialization": "Computer Science (Data Science)",
+    "college": "Your University",
+    "cgpa": null,
+    "graduation": "May 2027",
+    "graduation_year": 2027,
+    "active_backlogs": null
+  },
+  "preferred_locations": ["India", "Remote"],
+  "expected_stipend": "",
+  "work_mode": "Any",
+  "projects": []
+}

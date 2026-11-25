@@ -80,11 +80,14 @@ async def analyze_job_file(
             detail="The uploaded file is empty."
         )
 
-    return await job_service.analyze_from_file(
-        session=session,
-        file_name=file.filename,
-        file_bytes=file_bytes
-    )
+    try:
+        return await job_service.analyze_from_file(
+            session=session,
+            file_name=file.filename,
+            file_bytes=file_bytes
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("", response_model=List[JobListItem])

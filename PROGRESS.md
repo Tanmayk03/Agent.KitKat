@@ -1,5 +1,10 @@
 # 🍫 Agent KitKat - Development Progress Log
 
+> **Correction (2026-11-25, independent audit):** the phase table below was written by the earlier
+> tool and marked every phase "COMPLETED" with "100% PASS". An execution-based audit found
+> 7 of 11 test scripts failing and several unsafe behaviours. Read `AUDIT_REPORT.md` for evidence
+> and `FEATURE_STATUS.md` for the current, verified status. New entries are at the bottom.
+
 | Phase | Description | Status | Date Completed |
 |---|---|---|---|
 | **Phase 1** | Local Backend & Ollama Integration | ✅ COMPLETED | 2026-11-15 |
@@ -235,3 +240,41 @@
     - `start_all.ps1`: Unified master launcher starting both backend and frontend in organized windows.
     - `run_all_tests.ps1`: Master test suite runner executing all 10 test suites sequentially.
 - **Tests Passed:** `tests/test_master_e2e.py` passed 100% green across all 11 steps.
+
+
+---
+
+## Stage 1: Independent audit (2026-11-25)
+* Read every backend, frontend, script and test file; ran install, backend boot, frontend build and all 11 test scripts in a throwaway copy.
+* Results recorded in `AUDIT_REPORT.md` (7 Critical, 11 High, 11 Medium findings), `FEATURE_STATUS.md` and `IMPLEMENTATION_ROADMAP.md`.
+* Evidence-based completion at audit: **≈38%**.
+
+## Stage 2: Critical fixes (2026-11-25, branch `audit-and-stabilise`)
+
+**Changed**
+* **Tests can no longer touch your data.** `tests/_isolation.py` points the DB and storage at a temp folder before any backend import. pytest config is in `pytest.ini` / `tests/conftest.py`.
+* **Submission safety.** The server refuses `auto_submit` unless the draft's approval request is `approved` **and** `confirm_submit=true`. It also refuses already-submitted applications and concurrent runs for the same draft. Approving in the UI now only *fills* the form; "Submit…" in the Tracker asks for confirmation.
+* **Browser agent.** No more auto-ticking of "Yes"/"No" radios (it hit a disability question), no generic-textarea cover-letter fallback, and no `AutomationControlled` evasion flag. Confirmation must be a success message that *appears after* the click, otherwise `submission_unverified`. Filled values are no longer written to logs.
+* **Security.** CORS allow-list (localhost and private LAN only) plus a cross-site write guard (403). Backend binds `127.0.0.1` by default (`start_backend.ps1 -Lan` to opt in). Upload filenames sanitised, 10 MB cap, orphan cleanup. Mode B URL fetch blocks local and private targets on every redirect hop.
+* **Discovery.** Sources raise on failure and every run returns `source_results` (fetched, new, duplicates, error, duration). Dedupe is scoped by `(source, external_id)` and no longer crashes, and URL normalisation keeps identifying query params. Invented salary, company and work-mode values were removed. `posted_at`, `fetched_at` and `employment_type` are stored. **Country-restricted remote** ("Remote in USA") is no longer treated as open to India.
+* **Extraction.** "be" ≠ B.E. Seniority comes from the title only. LLM values (CGPA, batches, salary, location, skills, qualifications) are accepted only if they appear in the posting text. Ambiguous skill regexes (CV, C, Go, express, rest, node, ts, tf, dl) were fixed. A "Location:" line is extracted deterministically.
+* **Eligibility and matching.** A missing batch is UNKNOWN, and missing profile facts are UNKNOWN (no hard-coded 8.44/2027 fallbacks). Work mode and location come from structured fields only. The experience check is persisted. The "MCA" ≠ "CA" bug is fixed. Rankings put PASS above UNKNOWN above FAIL. "No skills listed" no longer awards an invented 30/35.
+* **Applications.** Screening answers are grounded in your profile or marked `NEEDS_YOUR_INPUT`. Work authorisation and sponsorship are never pre-filled. `pre_authorized` behaves like manual approval. Submitted applications cannot be regenerated or edited.
+* **Scheduler.** State persists in your profile and is restored at startup. One shared lock means scheduled, manual and run-now cycles never overlap (409 when busy).
+* **Frontend contracts.** Analyse-text sends `text`; Approve/Reject sends `{action, decision_notes}`.
+* **Personal data.** Removed from code. A new profile is empty, or seeded from git-ignored `profile_seed.json` (see `profile_seed.example.json`). The synthetic-resume script was replaced by `scripts/import_resume.py`, which imports your *real* file. Harvest scripts that wipe the DB now require `--wipe-my-data`.
+
+**Test results (executed 2026-11-25, Linux sandbox)**
+| Suite | Result |
+|---|---|
+| `pytest` (tests/test_stage2_regressions.py, 38 tests) | **PASS** 38/38 (3 Playwright tests ran against real Chromium) |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| test_phase1, test_live_server | **BLOCKED**: need a running Ollama |
+| test_phase7, test_master_e2e | **BLOCKED**: job APIs unreachable from the sandbox (Simplify verified live separately) |
+| Upgrade of an old-schema database | **PASS**: columns added, existing jobs and profile preserved |
+
+**Known limitations / next**
+* LAN access through the Vite dev server still has no login (Stage 9 token).
+* Daily report numbers are still cumulative (Stage 7).
+* The Simplify feed yields very few India-accessible roles; India-focused sources are the priority of Stage 3.
+* Your existing profile record may hold CGPA **8.53**, but you said 8.44. Check it against your current resume on the Profile page.
