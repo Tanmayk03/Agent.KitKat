@@ -59,4 +59,4 @@ Last updated: 2026-11-25, after Stage 5 (applications & tracking). Rows changed 
 | PWA | iPhone install over LAN | 🟡 | 🟡 | Service workers need HTTPS on a LAN IP; Stage 8 |
 | AI | Ollama health and generation | ⛔ | ⛔ | Ollama not available in the audit sandbox |
 
-**Completion estimate:** about 38% at audit, about 47% after Stage 2, about 54% after Stage 3, **about 61% after Stage 4, **about 68% after Stage 5** (application preparation 30→85, approvals & tracking 35→90) (Stage 2: security +5, browser +3, tests +2, discovery +1.5, approvals +1.5, eligibility +1, scheduler +1.5. Stage 3: discovery +7, tests +1. Weight total 120.)
+**Completion estimate:** about 38% at audit → 47% (Stage 2) → 54% (Stage 3) → 61% (Stage 4) → **about 68% after Stage 5**. Weighted over 18 feature areas totalling 120 points; see AUDIT_REPORT.md §7. Main Stage 5 gains: application preparation 30→85%, approvals & tracking 35→90%.
