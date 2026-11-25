@@ -16,9 +16,9 @@ if %ERRORLEVEL% NEQ 0 (
     echo [OK] Ollama is active.
 )
 
-:: 2. Launch FastAPI Backend in a new terminal
+:: 2. Launch FastAPI Backend in a new terminal (127.0.0.1 only; iPhone reaches the API through the Vite proxy on :5173)
 echo [2/3] Launching FastAPI Backend on port 8000...
-start "Agent KitKat Backend (Port 8000)" cmd /k "cd /d "%~dp0" && .\venv\Scripts\activate.bat && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
+start "Agent KitKat Backend (Port 8000)" cmd /k "cd /d "%~dp0" && .\venv\Scripts\activate.bat && uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload"
 
 :: 3. Launch Vite Frontend dev server in a new terminal
 echo [3/3] Launching React Frontend on port 5173...
