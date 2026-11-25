@@ -151,6 +151,22 @@ Or run individual services:
 
 ---
 
+## 🏢 Finding India roles: follow company career boards
+
+The free public feeds (Remotive, Jobicy, We Work Remotely, Arbeitnow, SimplifyJobs) carry very few
+internships that are open to candidates in India. To cover the companies you actually want, go to
+**Settings → Company Career Boards** and paste their careers URL:
+
+* `https://boards.greenhouse.io/<company>` (Greenhouse)
+* `https://jobs.lever.co/<company>` (Lever)
+* `https://jobs.ashbyhq.com/<company>` (Ashby)
+
+Agent KitKat reads these companies' official public job-board APIs on every discovery run, keeps
+intern / fresher tech roles in India or open-remote, and marks jobs as expired when the company
+takes them down. Each board appears in the dashboard's **Source Health** panel.
+
+---
+
 ## 📱 iPhone PWA & Remote Access Setup
 
 1. Connect your iPhone to the same local Wi-Fi network as your laptop.

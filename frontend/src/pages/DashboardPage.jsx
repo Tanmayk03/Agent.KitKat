@@ -11,6 +11,7 @@ import {
   Layers,
   Cpu,
 } from 'lucide-react';
+import SourceHealthPanel from '../components/SourceHealthPanel';
 
 export default function DashboardPage({
   profile,
@@ -19,6 +20,8 @@ export default function DashboardPage({
   schedulerStatus,
   onTriggerDiscovery,
   onNavigateTab,
+  discoveryRun = null,
+  healthRefreshKey = 0,
 }) {
   const [triggering, setTriggering] = useState(false);
 
@@ -31,7 +34,8 @@ export default function DashboardPage({
     }
   };
 
-  const candidateName = profile?.full_name || 'Candidate';
+  const candidateName = profile?.full_name ? `, ${profile.full_name}` : '';
+  const running = triggering || discoveryRun?.status === 'running';
   const education = profile?.education || {};
   const prefs = profile?.application_preferences || {};
 
@@ -46,24 +50,39 @@ export default function DashboardPage({
               <span>Career Engine Ready</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-100">
-              Welcome back, {candidateName}
+              Welcome back{candidateName}
             </h1>
             <p className="text-xs sm:text-sm text-zinc-400 max-w-2xl leading-relaxed">
-              Targeting <span className="text-zinc-200 font-medium">{education.degree || 'B.Tech'}</span> (
-              {education.specialization || 'CS & Data Science'}, {education.college || 'SRM University'} &bull; Batch{' '}
-              {education.graduation_year || 2027}) opportunities across India & Remote.
+              {education.degree ? (
+                <>
+                  Targeting <span className="text-zinc-200 font-medium">{education.degree}</span>
+                  {education.specialization ? ` (${education.specialization})` : ''}
+                  {education.college ? `, ${education.college}` : ''}
+                  {education.graduation_year ? ` · Batch ${education.graduation_year}` : ''} opportunities across India & Remote.
+                </>
+              ) : (
+                <>Your education details are missing: fill in your Profile so eligibility checks can work.</>
+              )}
             </p>
+            {discoveryRun && (
+              <p className="text-xs text-zinc-400" role="status">
+                Discovery: <span className="text-zinc-200">{discoveryRun.status}</span>
+                {discoveryRun.status === 'running'
+                  ? ` · ${discoveryRun.progress}`
+                  : ` · ${discoveryRun.new_saved ?? 0} new, ${discoveryRun.duplicates ?? 0} duplicates, ${discoveryRun.failed_sources ?? 0} failed sources`}
+              </p>
+            )}
           </div>
 
           {/* Quick Actions */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={handleTrigger}
-              disabled={triggering}
+              disabled={running}
               className="flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-950 transition-colors disabled:opacity-50"
             >
-              <Play className={`w-3.5 h-3.5 ${triggering ? 'animate-spin' : ''}`} />
-              <span>{triggering ? 'Hunting Jobs...' : 'Run Daily Hunt (Mode A)'}</span>
+              <Play className={`w-3.5 h-3.5 ${running ? 'animate-spin' : ''}`} />
+              <span>{running ? 'Discovering…' : 'Run Discovery Now'}</span>
             </button>
             <button
               onClick={() => onNavigateTab('analyze')}
@@ -89,13 +108,13 @@ export default function DashboardPage({
             label: 'Eligible (PASS)',
             val: report?.eligible_count || 0,
             icon: CheckCircle2,
-            sub: '100% Verified Profile Match',
+            sub: 'All checked requirements passed',
           },
           {
-            label: 'Shortlisted (≥75%)',
+            label: `Shortlisted (eligible, ≥${prefs.min_match_score ?? 75}%)`,
             val: report?.shortlisted_count || 0,
             icon: TrendingUp,
-            sub: 'Strong Resume Compatibility',
+            sub: 'Eligible and above your match threshold',
           },
           {
             label: 'Applications Submitted',
@@ -200,12 +219,15 @@ export default function DashboardPage({
         </div>
       </div>
 
+      {/* Source Health (stored discovery history) */}
+      <SourceHealthPanel refreshKey={healthRefreshKey} />
+
       {/* Discovered Opportunities Feed */}
       <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 overflow-hidden shadow-sm">
         <div className="px-4 sm:px-6 py-3.5 border-b border-zinc-800/80 flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-zinc-100">Recent Opportunities Pipeline</h2>
-            <p className="text-xs text-zinc-400">Discovered across public feeds, Remotive, and tech internships</p>
+            <p className="text-xs text-zinc-400">Most recently stored listings from all sources</p>
           </div>
           <button
             onClick={() => onNavigateTab('opportunities')}
@@ -226,18 +248,28 @@ export default function DashboardPage({
                 <div className="flex items-center space-x-2">
                   <h3 className="text-sm font-medium text-zinc-100">{job.title}</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded font-mono bg-zinc-800 text-zinc-300 border border-zinc-700/50">
-                    {job.work_mode || 'Remote'}
+                    {job.work_mode || 'Unknown'}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-zinc-400">
                   <span className="text-zinc-300">{job.company}</span>
                   <span>&bull;</span>
-                  <span>{job.location || 'India'}</span>
-                  <span>&bull;</span>
-                  <span className="font-mono text-zinc-300">{job.salary_stipend || 'Competitive'}</span>
+                  <span>{job.location || 'Location not stated'}</span>
+                  {job.salary_stipend && (
+                    <>
+                      <span>&bull;</span>
+                      <span className="font-mono text-zinc-300">{job.salary_stipend}</span>
+                    </>
+                  )}
+                  {job.posted_at && (
+                    <>
+                      <span>&bull;</span>
+                      <span>Posted {job.posted_at.slice(0, 10)}</span>
+                    </>
+                  )}
                   <span>&bull;</span>
                   <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 bg-zinc-800/80 rounded text-zinc-400">
-                    Source: {job.source || 'public'}
+                    Source: {job.source || 'unknown'}
                   </span>
                 </div>
               </div>
@@ -255,7 +287,7 @@ export default function DashboardPage({
 
           {jobs.length === 0 && (
             <div className="py-10 text-center text-zinc-500 text-xs">
-              No opportunities discovered yet. Click <span className="text-zinc-200 font-medium">"Run Daily Hunt"</span> above to search.
+              No opportunities discovered yet. Click <span className="text-zinc-200 font-medium">"Run Discovery Now"</span> above to search.
             </div>
           )}
         </div>

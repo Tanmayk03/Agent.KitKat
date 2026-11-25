@@ -2,7 +2,7 @@
 
 Legend: ✅ Working (demonstrated) · 🟡 Partial · 🧩 UI/placeholder only · ❌ Broken · ⬜ Missing · ⛔ Blocked (could not be verified in the audit environment)
 
-Last updated: 2026-11-25, after Stage 1 (audit) and Stage 2 (critical fixes). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
+Last updated: 2026-11-25, after Stage 3 (discovery reliability). Stage 3 rows are marked (S3). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
 
 | Area | Feature | Before (audit) | After Stage 2 | Evidence / remaining gap |
 |---|---|---|---|---|
@@ -23,8 +23,12 @@ Last updated: 2026-11-25, after Stage 1 (audit) and Stage 2 (critical fixes). Th
 | Discovery | "Remote in USA/UK/Canada" treated as not open to India | ❌ (counted as eligible) | ✅ | Live Simplify run: 91 of 94 "eligible" listings were country-restricted remote; now 3 genuinely India-accessible remain (tests) |
 | Discovery | No fabricated fields | ❌ | ✅ | Salary, company and work-mode fallbacks removed (tests) |
 | Discovery | Dedupe without crash, source-scoped IDs | ❌ | ✅ | Regression test for `MultipleResultsFound` |
-| Discovery | Per-source result reporting | ⬜ | 🟡 | `source_results` in the run result; persisted health panel is Stage 3 |
-| Discovery | Retries, backoff, pagination, rate limits, expiry | ⬜ | ⬜ | Stage 3 |
+| Discovery | Source health: persisted per-source history, dashboard panel (S3) | ⬜ | ✅ | `source_runs` / `discovery_runs` tables, `/api/discovery/health`; rendered and checked in a browser with live data |
+| Discovery | Retries, backoff, 429 Retry-After, pagination (S3) | ⬜ | ✅ | Mocked-HTTP tests; live run shows "after 4 attempts" errors for blocked hosts |
+| Discovery | Expiry detection (S3) | ⬜ | 🟡 | ✅ for Simplify closed flags and complete career-board snapshots (tests). Other feeds have no closure evidence, so no expiry (by design) |
+| Discovery | Company career boards: Greenhouse / Lever / Ashby (S3) | ⬜ | 🟡 | Parsers tested against documented formats; **live ⛔** in sandbox |
+| Discovery | Background runs with progress; interrupted runs recorded (S3) | ⬜ | ✅ | Tests plus live run |
+| Discovery | Indexed dedupe key, last_seen_at (S3) | ⬜ | ✅ | Tests; live second run: 3/3 duplicates detected |
 | Analysis | Mode B text / URL / file | 🟡 (text broken in UI) | ✅ | Contract fixed (test) |
 | Analysis | Extraction accuracy (degree, seniority, LLM grounding) | ❌ | 🟡 | "be" ≠ B.E.; title-only seniority; LLM CGPA and batch accepted only if found in the text (tests). Full Pydantic schema with explicit/inferred/missing is Stage 4 |
 | Eligibility | PASS/FAIL/UNKNOWN; unknown never PASS | ❌ | 🟡 | Missing batch or profile data → UNKNOWN (test_phase4 now passes). Experience check persisted. Backlogs and work authorisation are Stage 4 |
@@ -47,4 +51,4 @@ Last updated: 2026-11-25, after Stage 1 (audit) and Stage 2 (critical fixes). Th
 | PWA | iPhone install over LAN | 🟡 | 🟡 | Service workers need HTTPS on a LAN IP; Stage 8 |
 | AI | Ollama health and generation | ⛔ | ⛔ | Ollama not available in the audit sandbox |
 
-**Completion estimate:** about 38% at audit, **about 47% after Stage 2** (security +5, browser +3, tests +2, discovery +1.5, approvals +1.5, eligibility +1, scheduler +1.5, against a weight total of 120).
+**Completion estimate:** about 38% at audit, about 47% after Stage 2, **about 54% after Stage 3** (discovery 25%→75%) (Stage 2: security +5, browser +3, tests +2, discovery +1.5, approvals +1.5, eligibility +1, scheduler +1.5. Stage 3: discovery +7, tests +1. Weight total 120.)

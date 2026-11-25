@@ -99,12 +99,17 @@ async def list_jobs(session: AsyncSession = Depends(get_db)):
             id=j.id,
             company=j.company,
             title=j.title,
-            location=j.location,
+            location=j.location or "Not stated",
             work_mode=j.work_mode,
             source=j.source,
             skills_count=len(j.required_skills or []),
             status=j.status,
             url=j.url,
+            salary_stipend=j.salary_stipend,
+            employment_type=j.employment_type,
+            posted_at=j.posted_at,
+            last_seen_at=j.last_seen_at,
+            expired_at=j.expired_at,
             created_at=j.created_at
         )
         for j in jobs

@@ -26,6 +26,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from backend.config import get_settings
+from backend.tools.http_fetch import SourceFetchError, fetch, make_client  # noqa: F401 (re-exported)
 
 logger = logging.getLogger("agent_kitkat.discovery_sources")
 settings = get_settings()
@@ -57,22 +58,12 @@ REMOTE_LOCATION_PATTERNS = [
 ]
 
 
-class SourceFetchError(RuntimeError):
-    """A discovery source could not be fetched (network error, HTTP error, bad payload)."""
-
-
 def _client(timeout: float = 20.0) -> httpx.AsyncClient:
-    return httpx.AsyncClient(timeout=timeout, trust_env=settings.HTTP_TRUST_ENV, follow_redirects=True)
+    return make_client(timeout)
 
 
 async def _get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
-    try:
-        res = await client.get(url, **kwargs)
-    except httpx.HTTPError as e:
-        raise SourceFetchError(f"{type(e).__name__}: {e}") from e
-    if res.status_code != 200:
-        raise SourceFetchError(f"HTTP {res.status_code} from {url}")
-    return res
+    return await fetch(client, url, params=kwargs.get("params"))
 
 
 def _parse_date(value: Any) -> Optional[str]:
@@ -192,8 +183,31 @@ def is_geographically_eligible(location_str: str, work_mode: str = "", text: str
 
 
 class BaseDiscoverySource:
-    """Abstract base class for all job discovery sources."""
+    """
+    Abstract base class for all job discovery sources.
+
+    After search() a source may report expiry evidence:
+    - expired_external_ids: IDs the source itself marks as closed/inactive.
+    - snapshot_scope / snapshot_ids: when the source returned its COMPLETE list of open jobs for a
+      scope (e.g. one company's career board), any stored job from that scope that is missing from
+      snapshot_ids has been taken down.
+    """
     name: str = "base"
+    description: str = ""
+
+    def __init__(self) -> None:
+        self.expired_external_ids: set = set()
+        self.snapshot_scope: Optional[str] = None
+        self.snapshot_ids: Optional[set] = None
+
+    def reset_run_state(self) -> None:
+        self.expired_external_ids = set()
+        self.snapshot_scope = None
+        self.snapshot_ids = None
+
+    @staticmethod
+    def is_configured() -> bool:
+        return True
 
     async def search(self, keywords: List[str], locations: List[str], limit: int = 10) -> List[Dict[str, Any]]:
         raise NotImplementedError
@@ -207,6 +221,7 @@ class TechInternshipsDiscoverySource(BaseDiscoverySource):
     SIMPLIFY_INTERNSHIPS_URL / SIMPLIFY_NEW_GRAD_URL env vars when a new season starts.
     """
     name = "simplify_internships"
+    description = "SimplifyJobs / Pitt CSC community internship & new-grad lists (GitHub JSON). Mostly US; only India / open-remote kept."
     INTERNSHIPS_URL = os.getenv(
         "SIMPLIFY_INTERNSHIPS_URL",
         "https://raw.githubusercontent.com/SimplifyJobs/Summer2025-Internships/dev/.github/scripts/listings.json",
@@ -220,7 +235,11 @@ class TechInternshipsDiscoverySource(BaseDiscoverySource):
         india_results: List[Dict[str, Any]] = []
         remote_results: List[Dict[str, Any]] = []
         for item in data:
-            if not isinstance(item, dict) or not item.get("active", True) or item.get("is_visible") is False:
+            if not isinstance(item, dict):
+                continue
+            if item.get("active") is False or item.get("is_visible") is False:
+                if item.get("id") is not None:
+                    self.expired_external_ids.add(str(item["id"]))  # the feed itself says it is closed
                 continue
             title = _str_or_none(item.get("title"))
             company = _str_or_none(item.get("company_name"))
@@ -304,6 +323,7 @@ class ArbeitnowDiscoverySource(BaseDiscoverySource):
     Kept: intern / working-student / junior tech roles located in India or flagged remote.
     """
     name = "arbeitnow"
+    description = "Arbeitnow public job board API (paginated). Intern / working-student / junior tech roles in India or remote."
     BASE_URL = "https://www.arbeitnow.com/api/job-board-api"
 
     def parse(self, jobs: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
@@ -349,16 +369,23 @@ class ArbeitnowDiscoverySource(BaseDiscoverySource):
                 break
         return results
 
+    MAX_PAGES = 5
+
     async def search(self, keywords: List[str], locations: List[str], limit: int = 5) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
         async with _client(20.0) as client:
-            res = await _get(client, self.BASE_URL)
-            try:
-                jobs = res.json().get("data", [])
-            except ValueError as e:
-                raise SourceFetchError(f"Invalid JSON: {e}") from e
-        results = self.parse(jobs, limit)
+            for page in range(1, self.MAX_PAGES + 1):
+                res = await _get(client, self.BASE_URL, params={"page": page})
+                try:
+                    payload = res.json()
+                except ValueError as e:
+                    raise SourceFetchError(f"Invalid JSON: {e}") from e
+                results.extend(self.parse(payload.get("data", []), limit - len(results)))
+                has_next = bool((payload.get("links") or {}).get("next"))
+                if len(results) >= limit or not has_next:
+                    break
         logger.info("Arbeitnow: %d matching listings.", len(results))
-        return results
+        return results[:limit]
 
 
 def _format_salary(min_v: Any, max_v: Any, currency: Any, period: Any = None) -> Optional[str]:
@@ -373,6 +400,7 @@ def _format_salary(min_v: Any, max_v: Any, currency: Any, period: Any = None) ->
 class JobicyDiscoverySource(BaseDiscoverySource):
     """Jobicy public remote-jobs API (https://jobicy.com/api/v2/remote-jobs). All listings are remote."""
     name = "jobicy"
+    description = "Jobicy public remote-jobs API. Entry-level tech roles open to India / worldwide."
     BASE_URL = "https://jobicy.com/api/v2/remote-jobs"
 
     def parse(self, jobs: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
@@ -434,6 +462,7 @@ class JobicyDiscoverySource(BaseDiscoverySource):
 class RemotiveDiscoverySource(BaseDiscoverySource):
     """Remotive public API (https://remotive.com/api/remote-jobs). All listings are remote."""
     name = "remotive"
+    description = "Remotive public API (software-dev). Junior / intern roles open to India / worldwide."
     BASE_URL = "https://remotive.com/api/remote-jobs"
 
     def parse(self, jobs: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
@@ -493,6 +522,7 @@ class RemotiveDiscoverySource(BaseDiscoverySource):
 class WeWorkRemotelyDiscoverySource(BaseDiscoverySource):
     """We Work Remotely public RSS feed (programming category). All listings are remote."""
     name = "weworkremotely"
+    description = "We Work Remotely programming RSS feed. Junior / entry roles open to India / worldwide."
     BASE_URL = "https://weworkremotely.com/categories/remote-programming-jobs.rss"
 
     def parse(self, xml_text: str, limit: int) -> List[Dict[str, Any]]:
@@ -546,6 +576,7 @@ class AdzunaDiscoverySource(BaseDiscoverySource):
     Adzuna Job Search API (India). Optional: requires free ADZUNA_APP_ID / ADZUNA_APP_KEY.
     """
     name = "adzuna"
+    description = "Adzuna India search API. Optional: needs free ADZUNA_APP_ID / ADZUNA_APP_KEY."
     BASE_URL = "https://api.adzuna.com/v1/api/jobs/in/search/1"
 
     @staticmethod

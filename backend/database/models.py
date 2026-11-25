@@ -144,6 +144,11 @@ class Job(Base):
     employment_type = Column(String(100), nullable=True)
     posted_at = Column(String(40), nullable=True)   # ISO-8601 as published by the source; None if not provided
     fetched_at = Column(DateTime, nullable=True)     # when Agent KitKat ingested it
+    last_seen_at = Column(DateTime, nullable=True)   # last discovery run in which the source still listed it
+    expired_at = Column(DateTime, nullable=True)     # when the source showed it closed / taken down
+    expiry_evidence = Column(String(255), nullable=True)
+    dedupe_key = Column(String(600), nullable=True, index=True)  # normalised company|title|location
+    url_key = Column(String(1000), nullable=True, index=True)    # normalised URL (tracking params removed)
 
     # Full text & raw metadata
     raw_text = Column(Text, default="")
@@ -316,3 +321,48 @@ class DailyReport(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+
+
+class DiscoveryRun(Base):
+    """One discovery cycle (manual, scheduled or background)."""
+    __tablename__ = "discovery_runs"
+
+    id = Column(String(36), primary_key=True, index=True)
+    trigger = Column(String(20), default="manual")      # manual, scheduled, background
+    status = Column(String(20), default="running")      # running, success, partial, failed
+    progress = Column(String(255), default="")
+    started_at = Column(DateTime, default=datetime.utcnow, index=True)
+    finished_at = Column(DateTime, nullable=True)
+    total_fetched = Column(Integer, default=0)
+    new_saved = Column(Integer, default=0)
+    duplicates = Column(Integer, default=0)
+    expired_marked = Column(Integer, default=0)
+    failed_sources = Column(Integer, default=0)
+    eligible_count = Column(Integer, default=0)
+    shortlisted_count = Column(Integer, default=0)
+    prepared_count = Column(Integer, default=0)
+    error = Column(Text, nullable=True)
+    result_json = Column(JSON, nullable=True)
+
+
+class SourceRun(Base):
+    """What one source did during one discovery run (source-health history)."""
+    __tablename__ = "source_runs"
+
+    id = Column(String(36), primary_key=True, index=True)
+    run_id = Column(String(36), ForeignKey("discovery_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_name = Column(String(120), nullable=False, index=True)
+    ok = Column(Boolean, default=False)
+    skipped_reason = Column(String(255), nullable=True)
+    fetched = Column(Integer, default=0)
+    new_saved = Column(Integer, default=0)
+    duplicates = Column(Integer, default=0)
+    expired_marked = Column(Integer, default=0)
+    error = Column(Text, nullable=True)
+    http_status = Column(Integer, nullable=True)
+    duration_ms = Column(Float, default=0.0)
+    started_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+# Registers SQLAlchemy listeners that keep Job.dedupe_key / Job.url_key up to date.
+import backend.tools.duplicate_checker  # noqa: E402,F401

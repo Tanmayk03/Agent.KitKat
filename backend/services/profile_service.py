@@ -109,7 +109,11 @@ class ProfileService:
         update_dict = update_data.model_dump(exclude_unset=True)
         if "application_preferences" in update_dict and update_dict["application_preferences"] is not None:
             merged = dict(profile.application_preferences or {})
-            merged.update(update_dict["application_preferences"])
+            incoming = dict(update_dict["application_preferences"])
+            # Followed career boards are managed only via /api/discovery/boards, so a stale
+            # copy sent back by a settings form can never overwrite them.
+            incoming.pop("career_boards", None)
+            merged.update(incoming)
             update_dict["application_preferences"] = merged
         if "education" in update_dict and update_dict["education"] is not None:
             merged_edu = dict(profile.education or {})

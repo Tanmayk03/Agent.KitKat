@@ -58,7 +58,8 @@ class ReportingService:
         # Match metrics (shortlisted: score >= 75%)
         match_res = await db.execute(select(MatchResult))
         match_list = match_res.scalars().all()
-        shortlisted_count = sum(1 for m in match_list if m.overall_score >= 75.0)
+        # Shortlisted = eligibility PASS and score >= your threshold (set by the matching service as job.status)
+        shortlisted_count = sum(1 for j in jobs if j.status == "shortlisted")
 
         # Application Drafts prepared
         draft_res = await db.execute(select(ApplicationDraft))
@@ -91,7 +92,7 @@ class ReportingService:
 | **Eligible Opportunities (PASS)** | **{eligible_count}** |
 | **Ineligible Opportunities (FAIL)** | **{rejected_count}** |
 | **Needs Verification (UNKNOWN)** | **{unknown_count}** |
-| **Shortlisted (Match ≥ 75%)** | **{shortlisted_count}** |
+| **Shortlisted (eligible + above your match threshold)** | **{shortlisted_count}** |
 | **Applications Prepared** | **{prepared_count}** |
 | **Applications Submitted** | **{submitted_count}** |
 | **Pending Human Approvals** | **{pending_approvals_count}** |

@@ -30,29 +30,7 @@ settings = get_settings()
 pytestmark = pytest.mark.asyncio
 
 
-# --------------------------------------------------------------------------- fixtures
-@pytest.fixture(autouse=True)
-def no_ollama(monkeypatch):
-    """Deterministic tests: the local model is 'offline' unless a test patches it."""
-    async def offline(*args, **kwargs):
-        raise HTTPException(status_code=503, detail="Ollama disabled in tests")
-    monkeypatch.setattr(ollama_service, "generate_response", offline)
-
-
-@pytest.fixture(autouse=True)
-async def clean_db():
-    await init_db()
-    async with AsyncSessionLocal() as s:
-        for model in (Application, ApprovalRequest, ApplicationDraft, MatchResult, EligibilityResult, Job, Resume, UserProfile):
-            await s.execute(delete(model))
-        await s.commit()
-    yield
-
-
-@pytest.fixture
-async def client():
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as c:
-        yield c
+# Shared fixtures (no_ollama, clean_db, client) live in tests/conftest.py
 
 
 async def make_job(**kw) -> str:

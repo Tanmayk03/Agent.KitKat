@@ -17,7 +17,7 @@ Ordered by risk first, then value. Every stage ends with: tests run and results 
 * M1, M2: upload sanitisation, SSRF guard.
 * Old test scripts brought in line with corrected behaviour where they encoded drift.
 
-## Stage 3: Job discovery and source reliability
+## Stage 3: Job discovery and source reliability ✅ (see PROGRESS.md for what shipped and its limits)
 * `SourceRun` table: source, started/finished, fetched, new, duplicates, expired, error, HTTP status.
 * Shared `fetch_json()`: timeout, 3 retries with exponential backoff and jitter, honours 429 `Retry-After`, respects `HTTP(S)_PROXY` (configurable `trust_env`).
 * Pagination where the API supports it (Remotive has none; Arbeitnow `?page=`; Jobicy `count`; Simplify is one file).

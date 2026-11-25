@@ -58,6 +58,7 @@ class ApplicationPreferences(BaseModel):
     search_frequency: str = Field(default="once_daily", description="Daily search frequency")
     scheduler_enabled: bool = Field(default=False, description="Whether the daily discovery schedule is on")
     availability: Optional[str] = Field(default=None, description="Your availability (used verbatim in screening answers)")
+    career_boards: List[Dict[str, Any]] = Field(default_factory=list, description="Company career boards you follow")
 
 
 class UserProfileUpdate(BaseModel):

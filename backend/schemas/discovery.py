@@ -52,6 +52,7 @@ class SourceRunResult(BaseModel):
     fetched: int = 0
     new_saved: int = 0
     duplicates: int = 0
+    expired: int = 0
     error: Optional[str] = None
     duration_ms: float = 0.0
     skipped_reason: Optional[str] = None
@@ -59,9 +60,11 @@ class SourceRunResult(BaseModel):
 
 class DiscoveryRunResult(BaseModel):
     """Result of an autonomous discovery cycle."""
+    run_id: Optional[str] = None
     total_discovered: int
     new_saved: int
     duplicates_skipped: int
+    expired_marked: int = 0
     eligible_count: int
     shortlisted_count: int
     prepared_count: int
@@ -88,3 +91,23 @@ class SchedulerStatusResponse(BaseModel):
     last_run_finished_at: Optional[str] = None
     last_run_status: Optional[str] = None
     last_run_error: Optional[str] = None
+
+
+class CareerBoardItem(BaseModel):
+    """A company career board you follow."""
+    ats: str
+    token: str
+    company: str
+    enabled: bool = True
+
+
+class CareerBoardAddRequest(BaseModel):
+    """Paste a careers URL (boards.greenhouse.io/x, jobs.lever.co/x, jobs.ashbyhq.com/x) or give ats + token."""
+    url: Optional[str] = Field(None, description="Careers page URL")
+    ats: Optional[str] = Field(None, description="greenhouse | lever | ashby (when giving a bare token)")
+    token: Optional[str] = Field(None, description="Board name / token")
+    company: Optional[str] = Field(None, max_length=120, description="Display name (defaults to the token)")
+
+
+class BackgroundRunRequest(DiscoveryTriggerRequest):
+    pass

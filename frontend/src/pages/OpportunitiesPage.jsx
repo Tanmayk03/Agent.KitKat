@@ -106,17 +106,33 @@ export default function OpportunitiesPage({ jobs = [], onPrepareApplication, onN
                   <p className="text-xs text-zinc-300 mt-0.5">{job.company}</p>
                 </div>
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/50 whitespace-nowrap">
-                  {job.work_mode || 'Remote'}
+                  {job.work_mode || 'Unknown'}
                 </span>
               </div>
 
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-zinc-400">
-                <span>{job.location || 'India'}</span>
-                <span>&bull;</span>
-                <span className="font-mono text-zinc-300">{job.salary_stipend || 'Competitive'}</span>
+                <span>{job.location || 'Location not stated'}</span>
+                {job.salary_stipend && (
+                  <>
+                    <span>&bull;</span>
+                    <span className="font-mono text-zinc-300">{job.salary_stipend}</span>
+                  </>
+                )}
+                {job.posted_at && (
+                  <>
+                    <span>&bull;</span>
+                    <span>Posted {job.posted_at.slice(0, 10)}</span>
+                  </>
+                )}
+                {job.status === 'expired' && (
+                  <>
+                    <span>&bull;</span>
+                    <span className="text-amber-300">No longer listed</span>
+                  </>
+                )}
                 <span>&bull;</span>
                 <span className="text-[10px] text-zinc-500 uppercase font-mono">
-                  {job.source || 'public'}
+                  {job.source || 'unknown'}
                 </span>
               </div>
 

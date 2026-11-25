@@ -278,3 +278,32 @@
 * Daily report numbers are still cumulative (Stage 7).
 * The Simplify feed yields very few India-accessible roles; India-focused sources are the priority of Stage 3.
 * Your existing profile record may hold CGPA **8.53**, but you said 8.44. Check it against your current resume on the Profile page.
+
+
+## Stage 3: Job discovery and source reliability (2026-11-25)
+
+**Changed**
+* **Resilient fetching** (`backend/tools/http_fetch.py`): timeouts, up to 3 retries with exponential backoff and jitter for network errors, 429 and 5xx. `Retry-After` is honoured (capped at 30 s). Other 4xx responses are not retried. Every source uses it.
+* **Pagination:** Arbeitnow follows `links.next` (up to 5 pages). Lever boards page through `skip`/`limit`.
+* **Company career boards** (`backend/tools/career_boards.py`): follow any company on **Greenhouse, Lever or Ashby** by pasting its careers URL (Settings → Company Career Boards). These use the official public job-board APIs, and each board is its own source with its own health row. No company list is hardcoded.
+* **Expiry detection from evidence only:** (a) a source's own "closed" flag (Simplify `active:false`); (b) for career boards, which return the company's complete list of open jobs, a stored job missing from that list. Expired jobs keep their history. Only jobs that are still just "opportunities" get status `expired`, while applied ones only get `expired_at`. Partial snapshots (Lever with more pages than fetched) are never used as evidence.
+* **Source-health history:** new `discovery_runs` and `source_runs` tables (per-source fetched, new, duplicates, expired, error, HTTP status, duration). `GET /api/discovery/health`, `GET /api/discovery/runs`, `GET /api/discovery/runs/{id}`.
+* **Background runs:** `POST /api/discovery/runs` returns at once (202). The dashboard polls progress ("Fetching jobicy (3/6)", "Processing listings (10/40)"). Runs left "running" by a restart are marked failed at startup. A run's status is `success` / `partial` / `failed`.
+* **Dedupe:** indexed `dedupe_key` (company|title|location) and `url_key` columns, kept in sync automatically and backfilled for old rows. Duplicates refresh `last_seen_at`. Same title in a different city is a separate opening.
+* **Dashboard:** new **Source Health** panel (working/failing sources, last run totals, per-source fetched/new/duplicates/expired, last success, success rate, stored jobs). Shows live run progress. Removed made-up fallbacks ("Competitive" salary, "Remote", "India", "B.Tech / SRM", "100% Verified Profile Match"). Shows posted date and "No longer listed" when known.
+* **Reports:** "Shortlisted" now means eligible and above your threshold (it was counting any score ≥ 75, even ineligible jobs).
+* SQLite WAL mode enabled so the dashboard can read while discovery writes.
+
+**Test results (executed 2026-11-25)**
+| Suite | Result |
+|---|---|
+| pytest (Stage 2 + Stage 3, 64 tests, all HTTP mocked) | **PASS** 64/64 |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| **Live run through the real backend** (background API, sandbox proxy) | Simplify: **3 real India-accessible listings stored** with real posted dates. Second run: 0 new, **3 duplicates detected**. Arbeitnow, Jobicy, Remotive and WWR **BLOCKED** by the sandbox proxy (recorded as failed with the exact error, as designed) |
+| Greenhouse, Lever, Ashby live | **NOT TESTED** (unreachable from sandbox); parsers tested against the documented response formats |
+| test_phase1, live_server, phase7, master_e2e | **BLOCKED** (Ollama / internet), unchanged |
+
+**Remaining limitations**
+* The public free feeds are thin for India internships. Following the career boards of companies you care about is now the main way to get India roles; you choose the companies.
+* Listings from feeds without a closed flag (Remotive, Jobicy, WWR, Arbeitnow) are never auto-expired. There is no evidence for that, so they show "last seen" instead.
+* Daily report numbers other than "shortlisted" are still cumulative (Stage 7).

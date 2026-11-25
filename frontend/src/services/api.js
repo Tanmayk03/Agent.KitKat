@@ -204,6 +204,52 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Background discovery run: returns { run_id } immediately; poll getDiscoveryRun(run_id)
+  async startDiscoveryRun(payload = {}) {
+    const res = await fetch(`${BASE_URL}/api/discovery/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(res);
+  },
+
+  async getDiscoveryRun(runId) {
+    const res = await fetch(`${BASE_URL}/api/discovery/runs/${runId}`);
+    return handleResponse(res);
+  },
+
+  async getDiscoveryRuns(limit = 10) {
+    const res = await fetch(`${BASE_URL}/api/discovery/runs?limit=${limit}`);
+    return handleResponse(res);
+  },
+
+  async getSourceHealth() {
+    const res = await fetch(`${BASE_URL}/api/discovery/health`);
+    return handleResponse(res);
+  },
+
+  async getCareerBoards() {
+    const res = await fetch(`${BASE_URL}/api/discovery/boards`);
+    return handleResponse(res);
+  },
+
+  async addCareerBoard(url, company = '') {
+    const res = await fetch(`${BASE_URL}/api/discovery/boards`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, company: company || null }),
+    });
+    return handleResponse(res);
+  },
+
+  async removeCareerBoard(ats, token) {
+    const res = await fetch(`${BASE_URL}/api/discovery/boards/${encodeURIComponent(ats)}/${encodeURIComponent(token)}`, {
+      method: 'DELETE',
+    });
+    return handleResponse(res);
+  },
+
   async getDiscoverySources() {
     const res = await fetch(`${BASE_URL}/api/discovery/sources`);
     return handleResponse(res);

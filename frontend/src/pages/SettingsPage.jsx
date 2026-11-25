@@ -11,6 +11,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { api } from '../services/api';
+import CareerBoardsCard from '../components/CareerBoardsCard';
 
 export default function SettingsPage({
   profile,
@@ -254,6 +255,9 @@ export default function SettingsPage({
       </div>
 
       {/* iPhone PWA & Remote Network Access Card */}
+      {/* Company career boards you follow (Greenhouse / Lever / Ashby public APIs) */}
+      <CareerBoardsCard />
+
       <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-3.5">
         <h2 className="text-sm font-semibold text-zinc-100 flex items-center space-x-2">
           <Smartphone className="w-4 h-4 text-zinc-400" />

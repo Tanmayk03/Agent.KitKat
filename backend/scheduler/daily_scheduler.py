@@ -34,6 +34,8 @@ class SchedulerBusyError(RuntimeError):
 class DailyScheduler:
     """Manages automated background recurring job discovery runs."""
 
+    _background_tasks: set = set()
+
     def __init__(self):
         self._scheduler: Optional[AsyncIOScheduler] = None
         self._enabled = False
@@ -127,6 +129,7 @@ class DailyScheduler:
     async def restore_from_profile(self) -> None:
         """Called at app startup: re-enable the schedule if the user had enabled it."""
         async with AsyncSessionLocal() as session:
+            await DiscoveryService.mark_interrupted_runs(session)
             profile = await ProfileService.get_or_create_profile(session)
             prefs = profile.application_preferences or {}
         time_str = str(prefs.get("daily_search_time") or "09:00")
@@ -165,6 +168,7 @@ class DailyScheduler:
                         db=session,
                         auto_evaluate=True,
                         auto_prepare_applications=True,
+                        trigger="scheduled",
                     )
                     report = await ReportingService.generate_daily_report(session)
                 self.last_run_status = "success"
@@ -181,6 +185,42 @@ class DailyScheduler:
                 return {"status": "error", "error": str(e)}
             finally:
                 self.last_run_finished_at = datetime.utcnow()
+
+
+    async def start_background_discovery(self, **kwargs) -> str:
+        """
+        Start a discovery run in the background and return its run_id immediately.
+        The dashboard polls GET /api/discovery/runs/{run_id} for progress.
+        Raises SchedulerBusyError if another cycle is running.
+        """
+        if self._run_lock.locked():
+            raise SchedulerBusyError("A discovery cycle is already running.")
+        await self._run_lock.acquire()  # held until the task finishes
+        try:
+            async with AsyncSessionLocal() as session:
+                run_id = await DiscoveryService.create_run_record(session, "background")
+        except Exception:
+            self._run_lock.release()
+            raise
+
+        async def _worker():
+            self.last_run_started_at = datetime.utcnow()
+            try:
+                async with AsyncSessionLocal() as session:
+                    await DiscoveryService.run_discovery(db=session, run_id=run_id, **kwargs)
+                    await ReportingService.generate_daily_report(session)
+                self.last_run_status = "success"
+            except Exception as e:
+                self.last_run_status, self.last_run_error = "error", str(e)
+                logger.exception("Background discovery run %s failed", run_id)
+            finally:
+                self.last_run_finished_at = datetime.utcnow()
+                self._run_lock.release()
+
+        task = asyncio.create_task(_worker())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return run_id
 
 
 # Singleton instance

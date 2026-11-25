@@ -20,6 +20,8 @@ export default function App() {
   const [schedulerStatus, setSchedulerStatus] = useState(null);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [emergencyAlert, setEmergencyAlert] = useState(null);
+  const [discoveryRun, setDiscoveryRun] = useState(null); // live background run (progress)
+  const [healthRefreshKey, setHealthRefreshKey] = useState(0);
 
   // Initial load
   const loadInitialData = async () => {
@@ -70,19 +72,37 @@ export default function App() {
     }
   };
 
+  const refreshAfterDiscovery = async () => {
+    const [j, r, appr] = await Promise.allSettled([api.getJobs(), api.getDailyReport(), api.getApprovals()]);
+    if (j.status === 'fulfilled') setJobs(j.value);
+    if (r.status === 'fulfilled') setReport(r.value);
+    if (appr.status === 'fulfilled') setPendingApprovalsCount(appr.value?.length || 0);
+    setHealthRefreshKey((k) => k + 1);
+  };
+
+  // Starts a background discovery run and polls its progress until it finishes.
   const handleTriggerDiscovery = async () => {
+    let runId;
     try {
-      await api.triggerDiscovery();
-      const updatedJobs = await api.getJobs();
-      setJobs(updatedJobs);
-      const updatedReport = await api.getDailyReport();
-      setReport(updatedReport);
-      const appr = await api.getApprovals();
-      setPendingApprovalsCount(appr?.length || 0);
-      setActiveTab('opportunities');
+      const started = await api.startDiscoveryRun({});
+      runId = started.run_id;
+      setDiscoveryRun({ run_id: runId, status: 'running', progress: 'Starting...' });
     } catch (err) {
-      alert(`Discovery cycle failed: ${err.message}`);
+      alert(`Could not start discovery: ${err.message}`);
+      return;
     }
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        const run = await api.getDiscoveryRun(runId);
+        setDiscoveryRun(run);
+        if (run.status !== 'running') break;
+      } catch (err) {
+        setDiscoveryRun({ run_id: runId, status: 'unknown', progress: `Lost track of run: ${err.message}` });
+        break;
+      }
+    }
+    await refreshAfterDiscovery();
   };
 
   return (
@@ -112,6 +132,8 @@ export default function App() {
             jobs={jobs}
             schedulerStatus={schedulerStatus}
             onTriggerDiscovery={handleTriggerDiscovery}
+            discoveryRun={discoveryRun}
+            healthRefreshKey={healthRefreshKey}
             onNavigateTab={setActiveTab}
             onEmergencyStop={handleEmergencyStop}
           />

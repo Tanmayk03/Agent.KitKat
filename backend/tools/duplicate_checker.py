@@ -78,6 +78,13 @@ class DuplicateChecker:
             return url.strip().rstrip("/").lower()
 
     @classmethod
+    def dedupe_key(cls, company: Optional[str], title: Optional[str], location: Optional[str]) -> Optional[str]:
+        comp, tit = cls.normalize_company(company or ""), cls.normalize_title(title or "")
+        if not comp or not tit:
+            return None
+        return f"{comp}|{tit}|{cls.normalize_title(location or '')}"
+
+    @classmethod
     async def check_duplicate(
         cls,
         db: AsyncSession,
@@ -89,42 +96,65 @@ class DuplicateChecker:
         location: Optional[str] = None,
     ) -> Tuple[bool, Optional[str]]:
         """
-        Check if an opportunity already exists in the database.
+        Check if an opportunity already exists in the database (all lookups use indexed columns).
         Order: (source, external_id) -> normalised URL -> normalised company + title (+ location when both known).
         Returns: (is_duplicate, reason)
         """
+        match = await cls.find_existing(db, url, company, title, external_id, source, location)
+        if match is None:
+            return False, None
+        job, reason = match
+        return True, reason
+
+    @classmethod
+    async def find_existing(
+        cls,
+        db: AsyncSession,
+        url: Optional[str] = None,
+        company: Optional[str] = None,
+        title: Optional[str] = None,
+        external_id: Optional[str] = None,
+        source: Optional[str] = None,
+        location: Optional[str] = None,
+    ) -> Optional[Tuple[Job, str]]:
         # 1. External ID, scoped to the same source (IDs are only unique within one source)
         if external_id and source:
-            ext_res = await db.execute(
-                select(Job.company).where(Job.job_id_external == external_id, Job.source == source).limit(1)
-            )
-            match_company = ext_res.scalars().first()
-            if match_company is not None:
-                return True, f"Same {source} job ID '{external_id}' already stored (Company: {match_company})"
+            job = (await db.execute(
+                select(Job).where(Job.job_id_external == external_id, Job.source == source).limit(1)
+            )).scalars().first()
+            if job is not None:
+                return job, f"Same {source} job ID '{external_id}' already stored (Company: {job.company})"
 
         # 2. Normalised URL
         if url:
-            norm_url = cls.normalize_url(url)
-            rows = await db.execute(select(Job.url, Job.title, Job.company).where(Job.url.isnot(None)))
-            for j_url, j_title, j_company in rows.all():
-                if cls.normalize_url(j_url) == norm_url:
-                    return True, f"Same URL as '{j_title}' at {j_company}"
+            job = (await db.execute(
+                select(Job).where(Job.url_key == cls.normalize_url(url)).limit(1)
+            )).scalars().first()
+            if job is not None:
+                return job, f"Same URL as '{job.title}' at {job.company}"
 
         # 3. Company + title (+ location when both sides have one)
-        if company and title:
-            norm_comp = cls.normalize_company(company)
-            norm_tit = cls.normalize_title(title)
-            norm_loc = cls.normalize_title(location or "")
-            if norm_comp and norm_tit:
-                rows = await db.execute(select(Job.company, Job.title, Job.location, Job.status))
-                for j_company, j_title, j_location, j_status in rows.all():
-                    if not j_company or not j_title:
-                        continue
-                    if cls.normalize_company(j_company) != norm_comp or cls.normalize_title(j_title) != norm_tit:
-                        continue
-                    db_loc = cls.normalize_title(j_location or "")
-                    if norm_loc and db_loc and norm_loc != db_loc:
-                        continue  # same role title in a different city is a different opening
-                    return True, f"'{j_title}' at '{j_company}' already in database (Status: {j_status})"
+        key = cls.dedupe_key(company, title, location)
+        if key:
+            prefix = key.rsplit("|", 1)[0] + "|"
+            norm_loc = key.rsplit("|", 1)[1]
+            rows = (await db.execute(
+                select(Job).where(Job.dedupe_key >= prefix, Job.dedupe_key < prefix + "\uffff")
+            )).scalars().all()
+            for job in rows:
+                db_loc = (job.dedupe_key or "").rsplit("|", 1)[-1]
+                if norm_loc and db_loc and norm_loc != db_loc:
+                    continue  # same role title in a different city is a different opening
+                return job, f"'{job.title}' at '{job.company}' already in database (Status: {job.status})"
+        return None
 
-        return False, None
+
+# Keep dedupe_key / url_key in sync on every insert/update of a Job, wherever it is created.
+from sqlalchemy import event  # noqa: E402
+
+
+@event.listens_for(Job, "before_insert")
+@event.listens_for(Job, "before_update")
+def _sync_job_keys(mapper, connection, target: Job) -> None:
+    target.dedupe_key = DuplicateChecker.dedupe_key(target.company, target.title, target.location)
+    target.url_key = DuplicateChecker.normalize_url(target.url) if target.url else None

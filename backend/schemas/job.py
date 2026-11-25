@@ -58,6 +58,11 @@ class JobListItem(BaseModel):
     skills_count: int
     status: str
     url: Optional[str] = None
+    salary_stipend: Optional[str] = None
+    employment_type: Optional[str] = None
+    posted_at: Optional[str] = None
+    last_seen_at: Optional[datetime] = None
+    expired_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:

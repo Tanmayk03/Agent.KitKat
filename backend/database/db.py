@@ -70,6 +70,15 @@ async def init_db() -> None:
             "ALTER TABLE jobs ADD COLUMN fetched_at DATETIME",
             "ALTER TABLE eligibility_results ADD COLUMN experience_status VARCHAR(20)",
             "ALTER TABLE eligibility_results ADD COLUMN experience_details VARCHAR(500)",
+            # Stage 3
+            "ALTER TABLE jobs ADD COLUMN last_seen_at DATETIME",
+            "ALTER TABLE jobs ADD COLUMN expired_at DATETIME",
+            "ALTER TABLE jobs ADD COLUMN expiry_evidence VARCHAR(255)",
+            "ALTER TABLE jobs ADD COLUMN dedupe_key VARCHAR(600)",
+            "ALTER TABLE jobs ADD COLUMN url_key VARCHAR(1000)",
+            "CREATE INDEX IF NOT EXISTS ix_jobs_dedupe_key ON jobs (dedupe_key)",
+            "CREATE INDEX IF NOT EXISTS ix_jobs_url_key ON jobs (url_key)",
+            "CREATE INDEX IF NOT EXISTS ix_jobs_source_ext ON jobs (source, job_id_external)",
         ]
         for stmt in migrations:
             try:
@@ -77,3 +86,27 @@ async def init_db() -> None:
             except OperationalError as e:
                 if "duplicate column" not in str(e).lower():
                     raise
+
+    # SQLite: WAL lets the dashboard read while a discovery run is writing
+    if engine.url.get_backend_name() == "sqlite":
+        async with engine.begin() as conn:
+            await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+
+    await _backfill_dedupe_keys()
+
+
+async def _backfill_dedupe_keys() -> None:
+    """Fill dedupe_key / url_key for jobs stored before Stage 3 (one-off, cheap)."""
+    from sqlalchemy import select
+    from backend.database.models import Job
+    from backend.tools.duplicate_checker import DuplicateChecker
+
+    async with AsyncSessionLocal() as session:
+        rows = (await session.execute(
+            select(Job).where((Job.dedupe_key.is_(None)) | ((Job.url_key.is_(None)) & (Job.url.isnot(None))))
+        )).scalars().all()
+        for job in rows:
+            job.dedupe_key = DuplicateChecker.dedupe_key(job.company, job.title, job.location)
+            job.url_key = DuplicateChecker.normalize_url(job.url) if job.url else None
+        if rows:
+            await session.commit()
