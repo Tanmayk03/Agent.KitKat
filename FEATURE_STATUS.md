@@ -2,7 +2,7 @@
 
 Legend: ✅ Working (demonstrated) · 🟡 Partial · 🧩 UI/placeholder only · ❌ Broken · ⬜ Missing · ⛔ Blocked (could not be verified in the audit environment)
 
-Last updated: 2026-11-25, after Stage 4 (profile, eligibility, matching). Rows changed in Stages 3/4 are marked (S3)/(S4). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
+Last updated: 2026-11-26, after Stage 8 (frontend and mobile). Rows changed in Stages 3–8 are marked (S3)…(S8). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
 
 | Area | Feature | Before (audit) | After Stage 2 | Evidence / remaining gap |
 |---|---|---|---|---|
@@ -37,7 +37,10 @@ Last updated: 2026-11-25, after Stage 4 (profile, eligibility, matching). Rows c
 | Eligibility | 10 dimensions, evidence per check, unknown never PASS (S4) | ❌ | ✅ | Tests; persisted in full (`checks_json`) |
 | Matching | 5-factor score, per-factor reasons, N/A rescaling, real project overlap, next action (S4) | 🟡 | ✅ | Tests |
 | Matching | Rankings: hard failures below eligible jobs | ❌ (pure score sort) | ✅ | PASS → UNKNOWN → FAIL, then score (test) |
-| Applications | Draft generation | 🟡 | 🟡 | Ungrounded answers replaced with `NEEDS_YOUR_INPUT` (test); versioning is Stage 5 |
+| Applications | Draft generation, grounded answers | 🟡 | ✅ | `NEEDS_YOUR_INPUT` instead of invented answers (test) |
+| Applications | Draft versions + restore (S5) | ⬜ | ✅ | Tests plus browser check |
+| Applications | Grounding checker + approval gate (S5) | ⬜ | ✅ | Tests; rule-based, see limitations in PROGRESS.md |
+| Approvals | Real match/eligibility, editable answers (S5) | ❌ (fake 90%/PASS) | ✅ | Browser check |
 | Applications | Never overwrite a submitted application | ❌ | ✅ | Test |
 | Approvals | Approve / reject from UI | ❌ (422) | ✅ | Contract fixed, `Literal` validation (test) |
 | Browser | Approval gate before submit | ❌ | ✅ | 409 unless approved and confirmed (test) |
@@ -45,13 +48,28 @@ Last updated: 2026-11-25, after Stage 4 (profile, eligibility, matching). Rows c
 | Browser | Truthful submission verification | ❌ | ✅ | Before/after visible-text diff; otherwise `submission_unverified` (Playwright test) |
 | Browser | Duplicate-submission guard | ⬜ | ✅ | Test |
 | Browser | Emergency stop | ✅ | ✅ | Existing test |
-| Browser | Site adapters (Greenhouse, Lever, Ashby…) | ⬜ | ⬜ | Stage 6 |
-| Tracker | 14-status lifecycle, filters, notes, follow-ups | ⬜ | ⬜ | Stage 5 |
-| Scheduler | Persisted, starts at boot, overlap-safe | ❌ | ✅ | Tests; interval scheduling is Stage 7 |
-| Reports | Per-day accurate numbers | ❌ (cumulative) | ❌ | Stage 7 |
+| Browser | Label-based field mapping + per-field plan (S6) | ⬜ | ✅ | Playwright tests on Greenhouse/Lever/Ashby-style pages |
+| Browser | Sensitive-question classifier (never auto-answered) (S6) | 🟡 | ✅ | 16 classifier cases plus browser tests |
+| Browser | Site adapters Greenhouse / Lever / Ashby / generic; unsupported sites explained (S6) | ⬜ | 🟡 | Tested on reconstructed markup; **real sites ⛔** in sandbox. Preview a real posting first |
+| Browser | Preview mode (types nothing), form state saved (S6) | ⬜ | ✅ | Tests plus browser check |
+| Browser | Prepared-application export for manual sites (S6) | ⬜ | ✅ | Test plus browser check |
+| Browser | Emergency stop = persistent halt of browser, discovery and schedule, with Resume (S6) | 🟡 | ✅ | Test (423 on every automation path) plus browser check |
+| Tracker | 14-stage lifecycle, enforced transitions, event history (S5) | ⬜ | ✅ | Tests |
+| Tracker | Filters, search, sort, pagination, notes, confirmation ID, follow-up date (S5) | ⬜ | ✅ | Tests plus browser check |
+| Tracker | Shortlist from Opportunities; one application per job (S5) | ⬜ | ✅ | Tests |
+| Scheduler | Persisted, starts at boot, overlap-safe | ❌ | ✅ | Tests |
+| Scheduler | Daily (your timezone) or every 3/4/6/8/12/24 h; restored at boot and after Resume; refuses to start while halted (S7) | ⬜ | ✅ | Tests plus browser check |
+| Scheduler | Run history (last 10) and 7-day failure count in Settings and Dashboard (S7) | ⬜ | ✅ | Tests plus browser check |
+| Reports | Per-day accurate numbers, local-day window (Asia/Kolkata default, `TIMEZONE` setting) (S7) | ❌ (cumulative) | ✅ | Tests (boundary jobs either side of local midnight) |
+| Reports | GET read-only, POST saves snapshot; history; date picker (S7) | ❌ (GET wrote rows) | ✅ | Tests plus browser check |
+| Reports | Follow-ups due (endpoint, Dashboard card, report section) (S7) | ⬜ | ✅ | Tests plus browser check |
 | Frontend | Real data, no mocks | ✅ | ✅ | |
-| Frontend | Opportunities with score and eligibility, pagination, toasts | ⬜ | ⬜ | Stage 8 |
-| PWA | iPhone install over LAN | 🟡 | 🟡 | Service workers need HTTPS on a LAN IP; Stage 8 |
+| Frontend | Opportunities from stored evaluations: eligibility badge and reasons, score, skills, next action, facets, sort, server-side pagination, shortlist/evaluate/prepare (S8) | ⬜ | ✅ | `GET /api/jobs/opportunities`; tests plus browser check (27 seeded jobs) |
+| Frontend | Toasts and confirm dialog instead of `alert()`/`confirm()`; shared loading/empty/error states (S8) | ⬜ | ✅ | No `alert(`/`confirm(` left in `src/`; browser check |
+| Frontend | Tab in URL hash: reload, bookmarks and the phone back button work (S8) | ⬜ | ✅ | Browser check |
+| Mobile | Bottom nav fixed to the screen bottom (was rendering at the top), More menu, 52 px targets, safe areas, no horizontal overflow on any page at 390 px, pinch-zoom allowed (S8) | ❌ | ✅ | Browser check, iPhone-size viewport |
+| PWA | PNG icons (192/512/maskable), 180 px apple-touch-icon, relative manifest that works at `/` and `/ui/`, network-first service worker, bundled fonts (S8) | 🟡 | ✅ | Tests (files served, PNG signatures) plus browser check |
+| PWA | iPhone offline shell over HTTPS (mkcert; `docs/IPHONE.md`) (S8) | 🟡 | ⛔ | Documented and auto-enabled when certs exist; needs a real iPhone to verify |
 | AI | Ollama health and generation | ⛔ | ⛔ | Ollama not available in the audit sandbox |
 
-**Completion estimate:** about 38% at audit, about 47% after Stage 2, about 54% after Stage 3, **about 61% after Stage 4** (profile 45→85, resume 50→80, analysis 35→70, eligibility 40→85, matching 50→85) (Stage 2: security +5, browser +3, tests +2, discovery +1.5, approvals +1.5, eligibility +1, scheduler +1.5. Stage 3: discovery +7, tests +1. Weight total 120.)
+**Completion estimate:** about 38% at audit → 47% (Stage 2) → 54% (Stage 3) → 61% (Stage 4) → 68% (Stage 5) → 74% (Stage 6) → 79% (Stage 7) → **about 84% after Stage 8** (frontend 60→90%, mobile/PWA 40→80%; real-iPhone and live-source checks still to do). Weighted over 18 feature areas totalling 120 points; see AUDIT_REPORT.md §7.

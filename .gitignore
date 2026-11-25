@@ -60,3 +60,7 @@ Thumbs.db
 
 # Personal profile seed (never commit personal data)
 profile_seed.json
+
+# Local HTTPS certificates for the iPhone (mkcert); never commit private keys
+frontend/certs/
+*.pem

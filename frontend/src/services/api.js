@@ -126,6 +126,13 @@ export const api = {
     return handleResponse(res);
   },
 
+  async getOpportunities(params = {}) {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') q.set(k, v); });
+    const res = await fetch(`${BASE_URL}/api/jobs/opportunities?${q}`);
+    return handleResponse(res);
+  },
+
   async getJob(id) {
     const res = await fetch(`${BASE_URL}/api/jobs/${id}`);
     return handleResponse(res);
@@ -136,6 +143,11 @@ export const api = {
     const res = await fetch(`${BASE_URL}/api/matching/evaluate/${jobId}`, {
       method: 'POST',
     });
+    return handleResponse(res);
+  },
+
+  async getEvaluation(jobId) {
+    const res = await fetch(`${BASE_URL}/api/matching/evaluation/${jobId}`);
     return handleResponse(res);
   },
 
@@ -174,13 +186,54 @@ export const api = {
   },
 
   // decision: 'approve' | 'reject' (also accepts 'approved' / 'rejected')
-  async decideApproval(approvalId, decision, notes = '') {
+  async decideApproval(approvalId, decision, notes = '', acknowledgeUnverifiedClaims = false) {
     const action = decision.startsWith('approve') ? 'approve' : decision.startsWith('reject') ? 'reject' : decision;
     const res = await fetch(`${BASE_URL}/api/applications/approvals/${approvalId}/decide`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, decision_notes: notes || null }),
+      body: JSON.stringify({ action, decision_notes: notes || null, acknowledge_unverified_claims: acknowledgeUnverifiedClaims }),
     });
+    return handleResponse(res);
+  },
+
+  async getDraftVersions(draftId) {
+    const res = await fetch(`${BASE_URL}/api/applications/drafts/${draftId}/versions`);
+    return handleResponse(res);
+  },
+
+  async restoreDraftVersion(draftId, version) {
+    const res = await fetch(`${BASE_URL}/api/applications/drafts/${draftId}/versions/${version}/restore`, { method: 'POST' });
+    return handleResponse(res);
+  },
+
+  // Tracker: { stage, q, sort, page, page_size } -> { items, total, page, page_size, stage_counts }
+  async getApplications(params = {}) {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+    const res = await fetch(`${BASE_URL}/api/applications?${qs.toString()}`);
+    return handleResponse(res);
+  },
+
+  async getStages() {
+    const res = await fetch(`${BASE_URL}/api/applications/stages`);
+    return handleResponse(res);
+  },
+
+  async shortlistJob(jobId) {
+    const res = await fetch(`${BASE_URL}/api/applications/shortlist/${jobId}`, { method: 'POST' });
+    return handleResponse(res);
+  },
+
+  async updateApplication(appId, patch) {
+    const res = await fetch(`${BASE_URL}/api/applications/${appId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    return handleResponse(res);
+  },
+
+  async getApplicationEvents(appId) {
+    const res = await fetch(`${BASE_URL}/api/applications/${appId}/events`);
     return handleResponse(res);
   },
 
@@ -198,6 +251,27 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ auto_submit: autoSubmit, confirm_submit: confirmSubmit, headless: true }),
     });
+    return handleResponse(res);
+  },
+
+  // Map the application form and show what would be filled. Types nothing.
+  async previewApplicationForm(draftId) {
+    const res = await fetch(`${BASE_URL}/api/browser/preview/${draftId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ headless: true }),
+    });
+    return handleResponse(res);
+  },
+
+  async getDraftExport(draftId) {
+    const res = await fetch(`${BASE_URL}/api/applications/drafts/${draftId}/export`);
+    if (!res.ok) return handleResponse(res);
+    return res.text();
+  },
+
+  async resumeAutomation() {
+    const res = await fetch(`${BASE_URL}/api/browser/resume`, { method: 'POST' });
     return handleResponse(res);
   },
 
@@ -279,8 +353,9 @@ export const api = {
     return handleResponse(res);
   },
 
-  async startScheduler(hour = 9, minute = 0) {
-    const res = await fetch(`${BASE_URL}/api/scheduler/start?hour=${hour}&minute=${minute}`, {
+  async startScheduler(hour = 9, minute = 0, mode = 'daily', intervalHours = 6) {
+    const q = new URLSearchParams({ hour, minute, mode, interval_hours: intervalHours });
+    const res = await fetch(`${BASE_URL}/api/scheduler/start?${q}`, {
       method: 'POST',
     });
     return handleResponse(res);
@@ -303,6 +378,20 @@ export const api = {
   // Daily Reports
   async getDailyReport(targetDate = null) {
     const url = targetDate ? `${BASE_URL}/api/reports/daily?target_date=${targetDate}` : `${BASE_URL}/api/reports/daily`;
+    const res = await fetch(url);
+    return handleResponse(res);
+  },
+
+  async generateDailyReport(targetDate = null) {
+    const url = targetDate
+      ? `${BASE_URL}/api/reports/daily/generate?target_date=${targetDate}`
+      : `${BASE_URL}/api/reports/daily/generate`;
+    const res = await fetch(url, { method: 'POST' });
+    return handleResponse(res);
+  },
+
+  async getFollowUps(dueBy = null) {
+    const url = dueBy ? `${BASE_URL}/api/applications/follow-ups?due_by=${dueBy}` : `${BASE_URL}/api/applications/follow-ups`;
     const res = await fetch(url);
     return handleResponse(res);
   },

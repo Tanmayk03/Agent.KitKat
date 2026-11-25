@@ -25,6 +25,9 @@ class ApplicationDraftResponse(BaseModel):
     unanswered_questions: List[str] = Field(default_factory=list)
     status: str
     policy_applied: str
+    grounding_report: List[Dict[str, Any]] = Field(default_factory=list,
+                                                   description="Claims that could not be traced to your profile/resume")
+    current_version: int = 1
     created_at: datetime
 
 
@@ -37,6 +40,8 @@ class DraftUpdateRequest(BaseModel):
 class ApprovalDecisionRequest(BaseModel):
     action: Literal["approve", "reject"] = Field(..., description="'approve' or 'reject'")
     decision_notes: Optional[str] = Field(None, description="Optional feedback or notes")
+    acknowledge_unverified_claims: bool = Field(
+        False, description="Approve even though the grounding check flagged claims (you checked them yourself)")
 
 
 class ApprovalRequestItem(BaseModel):
@@ -67,11 +72,62 @@ class ApplicationTrackerItem(BaseModel):
     job_title: Optional[str] = None
     job_url: Optional[str] = None
     status: str
+    stage: str = "discovered"
+    stage_label: str = "Discovered"
+    stage_updated_at: Optional[datetime] = None
+    allowed_next_stages: List[str] = Field(default_factory=list)
     approval_status: Optional[str] = None
+    eligibility_status: Optional[str] = None
     match_score: Optional[float] = None
+    source: Optional[str] = None
+    location: Optional[str] = None
+    resume_id: Optional[str] = None
+    resume_file_name: Optional[str] = None
+    confirmation_id: Optional[str] = None
+    notes: Optional[str] = None
+    follow_up_date: Optional[str] = None
+    pre_submit_screenshot: Optional[str] = None
+    post_submit_screenshot: Optional[str] = None
+    form_state: Optional[Dict[str, Any]] = None
     submission_method: str
     submission_result: Optional[str] = None
     failure_reason: Optional[str] = None
     applied_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class TrackerPage(BaseModel):
+    items: List[ApplicationTrackerItem]
+    total: int
+    page: int
+    page_size: int
+    stage_counts: Dict[str, int] = Field(default_factory=dict)
+
+
+class ApplicationUpdateRequest(BaseModel):
+    stage: Optional[str] = Field(None, description="New lifecycle stage (validated against allowed transitions)")
+    note: Optional[str] = Field(None, max_length=2000, description="Note recorded in the history")
+    notes: Optional[str] = Field(None, max_length=10000, description="Free-form notes on the application")
+    confirmation_id: Optional[str] = Field(None, max_length=255)
+    follow_up_date: Optional[str] = Field(None, pattern=r"^$|^\d{4}-\d{2}-\d{2}$")
+
+
+class ApplicationEventItem(BaseModel):
+    id: str
+    from_stage: Optional[str]
+    to_stage: Optional[str]
+    actor: str
+    note: Optional[str]
+    created_at: datetime
+
+
+class DraftVersionItem(BaseModel):
+    id: str
+    version: int
+    source: str
+    cover_letter: str
+    custom_answers: Dict[str, Any] = Field(default_factory=dict)
+    form_field_values: Dict[str, Any] = Field(default_factory=dict)
+    grounding_report: List[Dict[str, Any]] = Field(default_factory=list)
     created_at: datetime

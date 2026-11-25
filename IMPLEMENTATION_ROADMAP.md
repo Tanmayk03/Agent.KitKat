@@ -34,24 +34,24 @@ Ordered by risk first, then value. Every stage ends with: tests run and results 
 * Eligibility over 10 dimensions with evidence snippets; UNKNOWN → "Confirm" action in the UI.
 * Matching: remove arbitrary baselines (no listed skills → factor marked N/A and weights renormalised and shown); project relevance by skill overlap with each project's stack; next-action recommendation.
 
-## Stage 5: Application preparation and tracking
+## Stage 5: Application preparation and tracking ✅
 * `DraftVersion` table; edits create versions; diff view.
 * Grounding checker: every claim in a generated letter must map to a profile or resume fact; flag unsupported sentences.
 * 14-status lifecycle as an enum with allowed transitions; `ApplicationEvent` history; notes, follow-up dates, confirmation ID, evidence paths.
 * Tracker: search, filter, sort, pagination, status updates.
 
-## Stage 6: Playwright automation and human approval
+## Stage 6: Playwright automation and human approval ✅
 * Field detection by label text (aria/label/for) instead of name substrings; a field map preview before filling.
 * Adapters for Greenhouse, Lever and Ashby public forms; unsupported-site explanation and a prepared-application export.
 * Save form state (JSON) and step screenshots; review screen shows exactly what will be sent.
 * Sensitive question classifier (demographics, legal, background-check) → always manual.
 * Global "halt" flag from emergency stop that also pauses the scheduler until reset.
 
-## Stage 7: Scheduler and reporting
+## Stage 7: Scheduler and reporting ✅
 * Interval or cron options; run history table; failure log; daily summary generation.
 * Reports computed per day (jobs created that day, evaluations that day, applications by status-change date). GET is read-only; POST generates.
 
-## Stage 8: Frontend and mobile
+## Stage 8: Frontend and mobile ✅
 * Opportunities page from rankings (score, eligibility, reasons, next action); shortlist button; pagination.
 * Toast notifications instead of `alert()`; consistent loading, empty and error states.
 * PWA: network-first HTML, PNG icons, `apple-touch-icon`; documented HTTPS option (`mkcert`) for a real service worker on iPhone.

@@ -6,9 +6,12 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast, useConfirm } from '../components/Feedback';
 import ResumeImportModal from '../components/ResumeImportModal';
 
 export default function ResumesPage({ onResumeChanged, onProfileUpdated }) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [importing, setImporting] = useState(null);
   const [resumes, setResumes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,9 +46,9 @@ export default function ResumesPage({ onResumeChanged, onProfileUpdated }) {
       const result = await api.uploadResume(file);
       await fetchResumes();
       if (onResumeChanged) onResumeChanged();
-      alert(`Resume uploaded successfully! Verified ${result.verified_skills_count} skills.`);
+      toast.success(`Resume uploaded. ${result.verified_skills_count} skills found in it.`);
     } catch (err) {
-      alert(`Upload failed: ${err.message}`);
+      toast.error(`Upload failed: ${err.message}`);
     } finally {
       setUploading(false);
     }
@@ -57,18 +60,18 @@ export default function ResumesPage({ onResumeChanged, onProfileUpdated }) {
       await fetchResumes();
       if (onResumeChanged) onResumeChanged();
     } catch (err) {
-      alert(`Could not activate resume: ${err.message}`);
+      toast.error(`Could not activate resume: ${err.message}`);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this resume?')) return;
+    if (!(await confirm({ title: 'Delete this resume?', body: 'The file and its parsed data are removed from this computer. Applications prepared with this resume can no longer attach it.', confirmLabel: 'Delete', danger: true }))) return;
     try {
       await api.deleteResume(id);
       await fetchResumes();
       if (onResumeChanged) onResumeChanged();
     } catch (err) {
-      alert(`Could not delete resume: ${err.message}`);
+      toast.error(`Could not delete resume: ${err.message}`);
     }
   };
 

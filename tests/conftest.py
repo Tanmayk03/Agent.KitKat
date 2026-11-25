@@ -30,7 +30,7 @@ def no_ollama(monkeypatch):
 async def clean_db():
     await init_db()
     async with AsyncSessionLocal() as s:
-        for model in (m.SourceRun, m.DiscoveryRun, m.Application, m.ApprovalRequest, m.ApplicationDraft,
+        for model in (m.ApplicationEvent, m.DraftVersion, m.SourceRun, m.DiscoveryRun, m.Application, m.ApprovalRequest, m.ApplicationDraft,
                       m.MatchResult, m.EligibilityResult, m.Job, m.Resume, m.UserProfile, m.DailyReport):
             await s.execute(delete(model))
         await s.commit()

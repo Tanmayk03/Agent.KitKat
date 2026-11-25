@@ -83,6 +83,19 @@ async def init_db() -> None:
             "ALTER TABLE eligibility_results ADD COLUMN checks_json JSON",
             "ALTER TABLE match_results ADD COLUMN details_json JSON",
             "ALTER TABLE user_profiles ADD COLUMN work_authorized_countries JSON",
+            # Stage 5
+            "ALTER TABLE application_drafts ADD COLUMN grounding_report JSON",
+            "ALTER TABLE application_drafts ADD COLUMN current_version INTEGER",
+            "ALTER TABLE applications ADD COLUMN stage VARCHAR(30)",
+            "ALTER TABLE applications ADD COLUMN stage_updated_at DATETIME",
+            "ALTER TABLE applications ADD COLUMN resume_id VARCHAR(36)",
+            "ALTER TABLE applications ADD COLUMN resume_file_name VARCHAR(255)",
+            "ALTER TABLE applications ADD COLUMN confirmation_id VARCHAR(255)",
+            "ALTER TABLE applications ADD COLUMN notes TEXT",
+            "ALTER TABLE applications ADD COLUMN follow_up_date VARCHAR(10)",
+            "CREATE INDEX IF NOT EXISTS ix_applications_stage ON applications (stage)",
+            # Stage 6
+            "ALTER TABLE applications ADD COLUMN form_state JSON",
         ]
         for stmt in migrations:
             try:
@@ -97,6 +110,21 @@ async def init_db() -> None:
             await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
 
     await _backfill_dedupe_keys()
+    await _backfill_application_stages()
+
+
+async def _backfill_application_stages() -> None:
+    """Give applications created before Stage 5 a lifecycle stage derived from their old status."""
+    from sqlalchemy import select
+    from backend.database.models import Application
+    from backend.services.lifecycle import stage_from_legacy_status
+
+    async with AsyncSessionLocal() as session:
+        rows = (await session.execute(select(Application).where(Application.stage.is_(None)))).scalars().all()
+        for app in rows:
+            app.stage = stage_from_legacy_status(app.status)
+        if rows:
+            await session.commit()
 
 
 async def _backfill_dedupe_keys() -> None:

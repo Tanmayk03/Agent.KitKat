@@ -38,6 +38,10 @@ export default function DashboardPage({
   const running = triggering || discoveryRun?.status === 'running';
   const education = profile?.education || {};
   const prefs = profile?.application_preferences || {};
+  const details = report?.details_json || {};
+  const today = details.activity || {};
+  const snap = details.snapshot || {};
+  const followUps = details.follow_ups || [];
 
   return (
     <div className="space-y-6">
@@ -99,28 +103,28 @@ export default function DashboardPage({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
           {
-            label: 'Total Discovered',
-            val: report?.total_discovered || jobs.length || 0,
+            label: 'New jobs today',
+            val: today.new_jobs ?? 0,
             icon: Briefcase,
-            sub: `${report?.new_found || 0} found today`,
+            sub: `${today.listings_fetched ?? 0} listings fetched · ${jobs.length} stored in total`,
           },
           {
-            label: 'Eligible (PASS)',
-            val: report?.eligible_count || 0,
+            label: 'Eligible today (PASS)',
+            val: today.eligible ?? 0,
             icon: CheckCircle2,
-            sub: 'All checked requirements passed',
+            sub: `${today.unknown ?? 0} need your check · ${today.ineligible ?? 0} not eligible`,
           },
           {
-            label: `Shortlisted (eligible, ≥${prefs.min_match_score ?? 75}%)`,
-            val: report?.shortlisted_count || 0,
+            label: `Eligible today, ≥${details.min_match_score ?? prefs.min_match_score ?? 75}% match`,
+            val: today.eligible_above_threshold ?? 0,
             icon: TrendingUp,
-            sub: 'Eligible and above your match threshold',
+            sub: `${today.drafts_prepared ?? 0} drafts prepared today`,
           },
           {
-            label: 'Applications Submitted',
-            val: report?.submitted_count || 0,
+            label: 'Submitted today',
+            val: today.submitted ?? 0,
             icon: Send,
-            sub: `${report?.pending_approvals_count || 0} pending review`,
+            sub: `${snap.pending_approvals ?? 0} waiting for your approval`,
           },
         ].map((card, i) => {
           const Icon = card.icon;
@@ -144,13 +148,30 @@ export default function DashboardPage({
         })}
       </div>
 
+      {followUps.length > 0 && (
+        <div className="rounded-xl border border-amber-900/50 bg-amber-950/10 p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-amber-200 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />Follow-ups due ({followUps.length})</span>
+            <button onClick={() => onNavigateTab('tracker')} className="text-[11px] text-zinc-300 underline">Open tracker</button>
+          </div>
+          <ul className="space-y-1 text-xs">
+            {followUps.slice(0, 5).map((f) => (
+              <li key={f.application_id} className="flex justify-between gap-3">
+                <span className="text-zinc-200 truncate">{f.title} <span className="text-zinc-500">· {f.company} · {f.stage}</span></span>
+                <span className="font-mono text-amber-300 shrink-0">{f.date}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Autonomous System Status & Mode Details */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
         {/* Scheduler Card */}
         <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-5 space-y-3">
           <div className="flex items-center space-x-2 text-xs font-medium text-zinc-200">
             <Clock className="w-3.5 h-3.5 text-zinc-400" />
-            <span>Autonomous Daily Scheduler</span>
+            <span>Discovery schedule</span>
           </div>
           <div className="flex items-center justify-between pt-1">
             <span className="text-xs text-zinc-400">Status</span>
@@ -165,15 +186,18 @@ export default function DashboardPage({
             </span>
           </div>
           <div className="flex items-center justify-between text-xs text-zinc-400">
-            <span>Daily Schedule</span>
-            <span className="font-mono text-zinc-200">{prefs.daily_search_time || '09:00'} AM</span>
+            <span>Runs</span>
+            <span className="font-mono text-zinc-200">{schedulerStatus?.is_running ? schedulerStatus.description : 'Paused'}</span>
           </div>
           <div className="flex items-center justify-between text-xs text-zinc-400">
             <span>Next Run</span>
             <span className="font-mono text-zinc-300 truncate max-w-[150px]">
-              {schedulerStatus?.next_run_time || 'On-demand'}
+              {schedulerStatus?.is_running ? schedulerStatus?.next_run_time || '—' : 'Manual only'}
             </span>
           </div>
+          {schedulerStatus?.failed_runs_7d > 0 && (
+            <p className="text-[11px] text-red-400">{schedulerStatus.failed_runs_7d} discovery run(s) failed in the last 7 days. See Settings.</p>
+          )}
         </div>
 
         {/* Submission Policy Card */}

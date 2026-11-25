@@ -21,17 +21,25 @@ router = APIRouter(prefix="/api/reports", tags=["Daily Reports"])
     "/daily",
     response_model=DailyReportResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get today's daily activity report"
+    summary="Report for one day in your timezone (read-only, computed live)"
 )
 async def get_daily_report(
-    target_date: Optional[str] = Query(default=None, description="Date in YYYY-MM-DD format (default: today)"),
+    target_date: Optional[str] = Query(default=None, description="Date in YYYY-MM-DD format (default: today, your timezone)"),
     db: AsyncSession = Depends(get_db)
 ) -> DailyReportResponse:
-    """
-    Returns today's comprehensive career intelligence report.
-    Aggregates real statistics on discovered jobs, eligibility passes/rejections,
-    applications prepared, approvals pending, and submission results.
-    """
+    """Activity during that day (from record timestamps) plus a snapshot of the current state. Writes nothing."""
+    return await ReportingService.get_daily_report(db, target_date=target_date)
+
+
+@router.post(
+    "/daily/generate",
+    response_model=DailyReportResponse,
+    summary="Save the report for a day (one row per date; re-saving replaces it)"
+)
+async def save_daily_report(
+    target_date: Optional[str] = Query(default=None, description="YYYY-MM-DD (default: today)"),
+    db: AsyncSession = Depends(get_db)
+) -> DailyReportResponse:
     return await ReportingService.generate_daily_report(db, target_date=target_date)
 
 

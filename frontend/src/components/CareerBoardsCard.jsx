@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Building2, Plus, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
+import { useConfirm } from './Feedback';
 
 /**
  * Follow companies' public career boards. Paste the careers URL, e.g.
@@ -8,6 +9,7 @@ import { api } from '../services/api';
  * Each followed board becomes its own discovery source (with its own health row).
  */
 export default function CareerBoardsCard() {
+  const confirm = useConfirm();
   const [boards, setBoards] = useState([]);
   const [url, setUrl] = useState('');
   const [company, setCompany] = useState('');
@@ -35,7 +37,7 @@ export default function CareerBoardsCard() {
   };
 
   const remove = async (b) => {
-    if (!window.confirm(`Stop following ${b.company}? Jobs already stored are kept.`)) return;
+    if (!(await confirm({ title: `Stop following ${b.company}?`, body: 'Jobs already stored are kept.', confirmLabel: 'Stop following' }))) return;
     try {
       setBoards(await api.removeCareerBoard(b.ats, b.token));
     } catch (err) {

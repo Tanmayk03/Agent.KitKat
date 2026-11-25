@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   FileCheck,
+  MoreHorizontal,
 } from 'lucide-react';
 
 export default function Navbar({
@@ -25,7 +26,7 @@ export default function Navbar({
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'analyze', label: 'Analyze Job', icon: Search },
+    { id: 'analyze', label: 'Analyze Job', short: 'Analyze', icon: Search },
     { id: 'opportunities', label: 'Opportunities', icon: ListOrdered },
     {
       id: 'approvals',
@@ -36,7 +37,7 @@ export default function Navbar({
     { id: 'tracker', label: 'Tracker', icon: FileText },
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'resumes', label: 'Resumes', icon: FileCheck },
-    { id: 'reports', label: 'Daily Reports', icon: BarChart3 },
+    { id: 'reports', label: 'Daily Reports', short: 'Reports', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -48,7 +49,8 @@ export default function Navbar({
   const isOllamaOnline = health && health.status === 'connected';
 
   return (
-    <header className="sticky top-0 z-50 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-800/80">
+    <>
+    <header className="sticky top-0 z-50 bg-zinc-950/85 backdrop-blur-md border-b border-zinc-800/80 safe-top">
       <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Brand */}
@@ -88,7 +90,8 @@ export default function Navbar({
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  <span>{item.label}</span>
+                  <span className="xl:hidden">{item.short || item.label}</span>
+                  <span className="hidden xl:inline">{item.label}</span>
                   {item.badge && (
                     <span className="ml-1 px-1.5 py-0.2 text-[10px] font-semibold rounded-full bg-zinc-100 text-zinc-950">
                       {item.badge}
@@ -123,7 +126,8 @@ export default function Navbar({
             <button
               onClick={onEmergencyStop}
               className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium bg-red-950/40 hover:bg-red-900/50 text-red-300 hover:text-red-200 border border-red-800/40 transition-colors"
-              title="Immediately halts all active Playwright browser sessions"
+              title="Stops browser automation, discovery and the schedule until you resume"
+              aria-label="Emergency Stop"
             >
               <ShieldAlert className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Emergency Stop</span>
@@ -132,8 +136,9 @@ export default function Navbar({
             {/* Mobile Menu Hamburger */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-1.5 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
-              aria-label="Toggle Navigation Menu"
+              className="lg:hidden p-2 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900"
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -143,7 +148,7 @@ export default function Navbar({
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-zinc-800/80 bg-zinc-950 px-4 pt-3 pb-5 space-y-1 shadow-2xl">
+        <div className="lg:hidden border-t border-zinc-800/80 bg-zinc-950 px-4 pt-3 pb-5 space-y-1 shadow-2xl max-h-[calc(100dvh-4rem)] overflow-y-auto">
           <div className="flex items-center justify-between pb-3 mb-2 border-b border-zinc-850 text-xs text-zinc-400">
             <span>Runtime: {isOllamaOnline ? 'Online (Local)' : 'Offline'}</span>
             <span className="font-mono text-zinc-400 text-[11px]">₹0 Cost</span>
@@ -155,7 +160,7 @@ export default function Navbar({
               <button
                 key={item.id}
                 onClick={() => handleTabClick(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                className={`w-full flex items-center justify-between px-3 py-3 rounded-md text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-zinc-800 text-zinc-100 border border-zinc-700/60'
                     : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
@@ -176,11 +181,16 @@ export default function Navbar({
         </div>
       )}
 
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-zinc-950/90 backdrop-blur-lg border-t border-zinc-800/80 px-2 py-1.5 flex justify-around items-center">
+    </header>
+
+      {/* Outside <header>: its backdrop-filter would make `fixed` relative to the header, not the screen. */}
+      {/* Mobile Bottom Navigation Bar (44px+ touch targets, clears the iPhone home indicator) */}
+      <nav
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-zinc-950/95 backdrop-blur-lg border-t border-zinc-800/80 px-1 safe-bottom flex justify-around items-stretch"
+        aria-label="Main"
+      >
         {[
           { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-          { id: 'analyze', label: 'Analyze', icon: Search },
           { id: 'opportunities', label: 'Jobs', icon: ListOrdered },
           { id: 'approvals', label: 'Approvals', icon: CheckSquare, badge: pendingApprovalsCount },
           { id: 'tracker', label: 'Tracker', icon: FileText },
@@ -191,19 +201,32 @@ export default function Navbar({
             <button
               key={item.id}
               onClick={() => handleTabClick(item.id)}
-              className={`flex flex-col items-center justify-center py-1 px-3 relative transition-colors ${
+              aria-current={isActive ? 'page' : undefined}
+              className={`flex-1 min-h-[52px] flex flex-col items-center justify-center relative transition-colors ${
                 isActive ? 'text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-5 h-5" />
               <span className="text-[10px] mt-1 font-medium">{item.label}</span>
               {item.badge > 0 && (
-                <span className="absolute top-0 right-2 w-1.5 h-1.5 rounded-full bg-zinc-100" />
+                <span className="absolute top-1.5 left-1/2 ml-1.5 min-w-[16px] h-4 px-1 rounded-full bg-zinc-100 text-zinc-950 text-[10px] font-semibold leading-4 text-center">
+                  {item.badge > 99 ? '99+' : item.badge}
+                </span>
               )}
             </button>
           );
         })}
-      </div>
-    </header>
+        <button
+          onClick={() => setMobileMenuOpen((o) => !o)}
+          aria-expanded={mobileMenuOpen}
+          className={`flex-1 min-h-[52px] flex flex-col items-center justify-center transition-colors ${
+            mobileMenuOpen || ['analyze', 'profile', 'resumes', 'reports', 'settings'].includes(activeTab) ? 'text-zinc-100' : 'text-zinc-500'
+          }`}
+        >
+          <MoreHorizontal className="w-5 h-5" />
+          <span className="text-[10px] mt-1 font-medium">More</span>
+        </button>
+      </nav>
+    </>
   );
 }

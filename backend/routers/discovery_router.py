@@ -21,7 +21,10 @@ from backend.schemas.discovery import (
 from backend.services.profile_service import ProfileService
 from backend.tools.career_boards import parse_board_url
 from backend.services.discovery_service import DiscoveryService
-from backend.scheduler.daily_scheduler import daily_scheduler, SchedulerBusyError
+from backend.scheduler.daily_scheduler import daily_scheduler, SchedulerBusyError, ALLOWED_INTERVAL_HOURS
+from backend.database.db import AsyncSessionLocal
+from backend.services.halt import ensure_not_halted
+from backend.config import get_settings
 
 logger = logging.getLogger("agent_kitkat.discovery_router")
 
@@ -150,7 +153,7 @@ async def remove_board(ats: str, token: str, db: AsyncSession = Depends(get_db))
 scheduler_router = APIRouter(prefix="/api/scheduler", tags=["Autonomous Scheduler"])
 
 
-def _scheduler_status() -> SchedulerStatusResponse:
+def _scheduler_status(recent_runs: Optional[list] = None, failed_7d: int = 0) -> SchedulerStatusResponse:
     fmt = lambda d: d.strftime("%Y-%m-%d %H:%M:%S") if d else None
     return SchedulerStatusResponse(
         is_running=daily_scheduler.is_running,
@@ -161,7 +164,37 @@ def _scheduler_status() -> SchedulerStatusResponse:
         last_run_finished_at=fmt(daily_scheduler.last_run_finished_at),
         last_run_status=daily_scheduler.last_run_status,
         last_run_error=daily_scheduler.last_run_error,
+        mode=daily_scheduler.mode,
+        interval_hours=daily_scheduler.interval_hours,
+        description=daily_scheduler.describe() if daily_scheduler.is_running else "Paused",
+        timezone=get_settings().TIMEZONE,
+        recent_runs=recent_runs or [],
+        failed_runs_7d=failed_7d,
     )
+
+
+async def _status_with_history() -> SchedulerStatusResponse:
+    """Status plus the last 10 discovery runs and the 7-day failure count (from the DB)."""
+    from datetime import datetime, timedelta
+    from sqlalchemy import select, func
+    from backend.database.models import DiscoveryRun
+    fmt = lambda d: d.strftime("%Y-%m-%d %H:%M:%S") if d else None
+    async with AsyncSessionLocal() as session:
+        rows = (await session.execute(
+            select(DiscoveryRun).order_by(DiscoveryRun.started_at.desc()).limit(10)
+        )).scalars().all()
+        since = datetime.utcnow() - timedelta(days=7)
+        failed = (await session.execute(
+            select(func.count()).select_from(DiscoveryRun)
+            .where(DiscoveryRun.started_at >= since, DiscoveryRun.status.in_(("failed", "interrupted")))
+        )).scalar_one()
+    recent = [{
+        "id": r.id, "trigger": r.trigger, "status": r.status,
+        "started_at": fmt(r.started_at), "finished_at": fmt(r.finished_at),
+        "fetched": r.total_fetched, "new_jobs": r.new_saved, "failed_sources": r.failed_sources,
+        "error": r.error,
+    } for r in rows]
+    return _scheduler_status(recent, int(failed or 0))
 
 
 @scheduler_router.post(
@@ -172,11 +205,17 @@ def _scheduler_status() -> SchedulerStatusResponse:
 )
 async def start_scheduler(
     hour: int = Query(default=9, ge=0, le=23, description="Hour of the day (0-23) to run discovery"),
-    minute: int = Query(default=0, ge=0, le=59, description="Minute of the hour (0-59)")
+    minute: int = Query(default=0, ge=0, le=59, description="Minute of the hour (0-59)"),
+    mode: str = Query(default="daily", pattern="^(daily|interval)$"),
+    interval_hours: int = Query(default=6, description="Used when mode=interval: 3, 4, 6, 8, 12 or 24"),
 ) -> SchedulerStatusResponse:
-    """Starts or reconfigures the daily background scheduler (persisted across restarts)."""
-    await daily_scheduler.enable(hour=hour, minute=minute)
-    return _scheduler_status()
+    """Starts or reconfigures the background scheduler (persisted across restarts)."""
+    async with AsyncSessionLocal() as session:
+        await ensure_not_halted(session)
+    if mode == "interval" and interval_hours not in ALLOWED_INTERVAL_HOURS:
+        raise HTTPException(status_code=422, detail=f"interval_hours must be one of {list(ALLOWED_INTERVAL_HOURS)}")
+    await daily_scheduler.enable(hour=hour, minute=minute, mode=mode, interval_hours=interval_hours)
+    return await _status_with_history()
 
 
 @scheduler_router.post(
@@ -188,7 +227,7 @@ async def start_scheduler(
 async def stop_scheduler() -> SchedulerStatusResponse:
     """Pauses the recurring background schedule (persisted across restarts)."""
     await daily_scheduler.disable()
-    return _scheduler_status()
+    return await _status_with_history()
 
 
 @scheduler_router.post(
@@ -211,5 +250,5 @@ async def trigger_scheduler_now():
     summary="Get scheduler status and next run time"
 )
 async def get_scheduler_status() -> SchedulerStatusResponse:
-    """Returns whether the scheduler is currently active and the next scheduled execution time."""
-    return _scheduler_status()
+    """Returns whether the scheduler is active, its mode, next run and recent run history."""
+    return await _status_with_history()

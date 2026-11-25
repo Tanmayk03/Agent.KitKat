@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     DEBUG: bool = True
 
+    # Your local timezone: daily reports and "today" are computed in it (IANA name)
+    TIMEZONE: str = "Asia/Kolkata"
+
     # Server Settings
     HOST: str = "127.0.0.1"
     PORT: int = 8000

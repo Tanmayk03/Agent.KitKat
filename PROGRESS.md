@@ -331,3 +331,165 @@
 * Resume parsing is regex-based. Unusual layouts (two columns, tables, images) may yield fewer suggestions, but never invented ones.
 * The skill dictionary is fixed (about 55 skills); skills outside it are not recognised in postings or resumes.
 * Experience "1 year" is UNKNOWN (you decide whether internships count); 2+ years is FAIL.
+
+
+## Stage 5: Application preparation and tracking (2026-11-25)
+
+**Changed**
+* **Draft versions:** every generated, edited or restored draft is saved (`draft_versions`). Approvals shows the history and can restore any earlier version; a restore creates a new version. No-op saves do not create versions.
+* **Grounding checker** (`backend/agents/grounding.py`): flags, per sentence, any claim the profile/resume does not back up:
+  * first-person mentions of skills that are not verified;
+  * metrics or counts ("40%", "500+ users", "3 years") not found in the profile, resume or posting;
+  * a CGPA that differs from the profile;
+  * "interned/worked at X" when X is not in the profile/resume;
+  * certification claims when none are listed;
+  * unfilled placeholders.
+  Naming the role or company ("the AI/ML Intern role") is not treated as a claim.
+* **Approval gate:** approval returns 409 while flagged claims exist, unless you tick "I checked every flagged claim" (`acknowledge_unverified_claims`). The acknowledgement is recorded in the history. **Editing an approved draft cancels the approval**, so it needs re-approval.
+* **Approvals page rewritten:** real match and eligibility (the old page showed `match_score || 90` and a hardcoded PASS); flagged claims listed with the sentence; editable screening answers (previously impossible); version history and restore; the approve button reads "Approve & fill form (does not submit)".
+* **14-stage lifecycle** (`backend/services/lifecycle.py`):
+  * Stages: Discovered, Shortlisted, Eligible, Not Eligible, Draft Ready, Awaiting Approval, Submitted, Submission Unverified, Application Confirmed, Assessment Received, Interview, Rejected, Withdrawn, Offer Received.
+  * Allowed transitions are enforced (e.g. Rejected is final), and every change is written to `application_events` with actor (you / system / browser) and note.
+  * The browser agent moves applications to Submitted / Submission Unverified.
+  * Applications from before Stage 5 get a stage derived from their old status at startup.
+* **Tracker rewritten:**
+  * stage filter chips with counts, search (company, role, notes, confirmation ID), 5 sort orders, pagination;
+  * detail drawer: change stage (only allowed next stages), note, confirmation ID, follow-up date, free notes, screenshots, submission evidence, resume used, full history;
+  * "Applied manually" = move to Submitted with a note.
+* **Opportunities:** a "Shortlist" button starts tracking a job, and stage is set to Eligible / Not Eligible from its evaluation.
+* **Duplicate protection:** one application per job. Once sent, the application cannot be regenerated, edited, restored or re-run in the browser.
+* New API: `GET /api/applications` (paginated), `PATCH /api/applications/{id}`, `GET /api/applications/{id}/events`, `POST /api/applications/shortlist/{job_id}`, `GET /api/applications/stages`, `GET /api/applications/drafts/{id}/versions`, `POST .../versions/{n}/restore`.
+
+**Test results (executed 2026-11-25)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–5, 99 tests) | **PASS** 99/99 |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS**. test_phase5 updated: it now fills the screening answers before approving, because placeholders block approval |
+| Browser check | Approvals (flagged claims, answer editor, versions), Tracker (filters, counts) and detail drawer (history, confirmation ID, follow-up) exercised against a running backend |
+
+**Remaining limitations**
+* The grounding checker is rule-based. It catches the common invented claims (skills, numbers, employers, CGPA, certifications) but not every possible exaggeration ("led a team"), so you still read the text.
+* Follow-up dates are stored and sortable, but there are no reminders yet (Stage 7 daily summary).
+
+
+## Stage 6: Browser automation and human approval (2026-11-25)
+
+**Changed**
+* **Label-based form mapping** (`backend/agents/form_mapper.py`): a script inside the page lists every form control together with its human-readable question. It looks at `<label for>`, wrapping labels, `aria-label`/`aria-labelledby`, fieldset legends, nearby label elements and, for radios/checkboxes, the question text before them. Each control is tagged with `data-kk`, so it can be targeted exactly. The old approach guessed from `name*='first'`-style substrings.
+* **Classifier:** decides from the question text, never from one attribute, whether a field is:
+  * a profile value
+  * the resume upload
+  * the cover letter (including Lever's "Additional information")
+  * a prepared screening answer
+  * **sensitive**: gender, race, veteran, disability, visa/sponsorship, work authorisation, date of birth, consent/declaration/certify, background check, salary history, … These are **never answered**.
+  * unknown
+  Radio and checkbox questions are always left to you. Dropdowns are filled only when an option matches your value (e.g. graduation year 2027).
+* **Site adapters** (`backend/agents/site_adapters.py`):
+  * **Greenhouse** (form on the job page), **Lever** (opens `/apply`) and **Ashby** (opens `/application`) are recognised by URL or page markup.
+  * Other sites use the generic label-based path, with a "review carefully" note.
+  * **Unsupported**: LinkedIn, Naukri, Indeed, Internshala, Workday, Glassdoor, Wellfound, Instahyre, foundit, Unstop, Cutshort, Hirist. These return `unsupported_site` with the reason, and no browser is opened.
+* **Preview:** `POST /api/browser/preview/{draft_id}` opens the page and returns the per-field plan plus a screenshot. Nothing is typed or clicked. Plan actions: will fill / select / upload, already filled, needs your input, sensitive, you answer.
+* **Fill** carries out only the planned actions and records each field's result. It then re-reads the form and pauses with the **question text** of any required field still empty (previously it reported internal names like `mandatory_background_check_consent`).
+* **Form state** (`applications.form_state`): adapter, mode, status, time, and per-field label/action/result (values are not duplicated). Noteworthy outcomes are added to the application history.
+* **Prepared-application export:** `GET /api/applications/drafts/{id}/export` returns Markdown with the form values, answers, cover letter, flagged claims and what to answer yourself. The Tracker's "Copy prepared application" button uses it.
+* **Emergency Stop is now a persistent halt:**
+  * It closes every browser, refuses browser runs and previews, refuses manual, background and scheduled discovery (HTTP 423), and pauses the daily schedule.
+  * It survives restarts until you press **Resume automation** in the red banner; the schedule comes back if it was enabled.
+* **UI:**
+  * Tracker drawer: **Preview form** (table of what will happen per field) and **Copy prepared application**.
+  * Red persistent halt banner with Resume.
+
+**Test results (executed 2026-11-25)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–6, 129 tests) | **PASS** 129/129 (7 Playwright tests against Greenhouse-, Lever- and Ashby-style pages in real Chromium) |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS**. test_phase6 now asserts label-based logs and that the work-authorisation/sponsorship radios are classified sensitive |
+| Browser check | Tracker preview of a Greenhouse-style form, prepared-application export for a LinkedIn job, halt banner |
+
+**Remaining limitations**
+* The ATS pages in the tests are **reconstructions** of Greenhouse/Lever/Ashby markup. Real sites change their HTML and may render with JavaScript widgets (custom dropdowns, multi-step forms) that are reported as "you answer" rather than filled. **Run a Preview on a real posting before relying on Fill.**
+* Custom (non-`<select>`) dropdown widgets and multi-page forms are not automated.
+* Cover letters are pasted as text only; cover-letter *file* uploads are left to you.
+
+---
+
+## Stage 7: Scheduler and reporting (2026-11-26)
+
+**Changed**
+* **Per-day reports** (`backend/services/reporting_service.py`, rewritten). A report covers one *local* calendar day: midnight to midnight in `TIMEZONE` (new setting, default `Asia/Kolkata`), converted to the UTC times the DB stores. Previously every number was cumulative.
+  * Activity that day: discovery runs (scheduled / failed), listings fetched, new jobs stored, listings marked expired, jobs evaluated, PASS / FAIL / UNKNOWN, eligible above your match threshold, shortlisted by you, drafts prepared, approvals decided, submitted, responses (assessment / interview / offer / rejection), source errors.
+  * Snapshot now: pending approvals, applications by stage, follow-ups due.
+  * Lists: best new eligible jobs (top 5 by score), follow-ups due, source errors with messages.
+  * An empty day reports zeros; nothing is estimated.
+* `GET /api/reports/daily?target_date=` is **read-only** (it used to write a row on every call). `POST /api/reports/daily/generate` saves or updates that day's snapshot; the scheduler saves one after each run.
+* **Follow-ups:** `GET /api/applications/follow-ups?due_by=` lists open applications whose follow-up date has arrived. Closed stages (rejected, withdrawn, offer, not eligible) are excluded.
+* **Scheduler modes** (`backend/scheduler/daily_scheduler.py`):
+  * Daily at a time in your timezone, or every 3 / 4 / 6 / 8 / 12 / 24 hours.
+  * Mode and interval are saved in your preferences and restored at startup and after Resume.
+  * Start is refused with 423 while Emergency Stop is active; invalid intervals get 422.
+  * Next run is shown with its timezone (e.g. `2026-11-26 09:00 IST`); the scheduler itself now runs in `TIMEZONE` rather than the machine's zone.
+* `GET /api/scheduler/status` adds mode, description, timezone, the last 10 discovery runs (trigger, status, fetched, new, source errors, error) and failures in the last 7 days.
+* **UI:**
+  * **Daily reports** page rebuilt: date picker, headline numbers, full activity table, best new jobs, follow-ups, source errors, applications by stage, Save snapshot, saved-snapshot history.
+  * **Dashboard:** cards now say "today" and show today's numbers (the old "Total discovered" was actually cumulative listings fetched); follow-ups-due card; schedule card shows mode, next run and recent failures. Fixed "21:00 AM"-style time display.
+  * **Settings:** schedule mode and interval selectors, Apply changes, next run, last run status, recent-runs table.
+
+**Test results (executed 2026-11-26)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–7, 140 tests) | **PASS** 140/140; 11 new in `tests/test_stage7_reporting.py` (local-midnight boundaries, read-only GET, upsert, follow-ups, both scheduler modes, persistence/restore, halt, run history) |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| Frontend build | **PASS** |
+| Browser check (Chromium, seeded temp DB) | Dashboard, Daily reports (save snapshot), Settings (switch to every 6 h → "Every 6 hours", run table with partial/failed rows); no page errors |
+
+**Remaining limitations**
+* On phones, Daily reports and Settings are not in the bottom navigation bar (Stage 8).
+* No push/e-mail notifications; follow-ups are shown in the app only.
+* Reports count stage changes from the application history; changes made before Stage 5 have no history and are not counted per day.
+
+---
+
+## Stage 8: Frontend and mobile (2026-11-26)
+
+**Changed**
+* **Opportunities** (`GET /api/jobs/opportunities`, `backend/services/opportunity_service.py`; page rewritten):
+  * Every stored job is joined in SQL with its **latest** eligibility and match result and its tracker entry.
+  * Default order: eligible, needs checking, not evaluated, not eligible; best score first within each group. Other sorts: highest score, newest found, recently posted.
+  * Filters: search, eligibility chips with counts, remote only, include expired, tracked or not. Pagination is server-side (20 per page).
+  * Each card shows:
+    * the eligibility badge, with the failed or unverified requirements;
+    * the score bar, highlighted at or above your threshold;
+    * matched and missing skills;
+    * the stored next action;
+    * Details (the full evaluation);
+    * actions: Evaluate (if not evaluated), Shortlist or "In tracker", and Prepare. Prepare asks first when the job failed a hard requirement.
+  * Previously the page listed every job from `/api/jobs` with no eligibility or score and filtered it in the browser.
+* **Feedback** (`components/Feedback.jsx`): toasts and a confirm dialog replace all 20 `alert()`/`confirm()` calls. The final Submit confirmation is a red dialog with the review warning. Shared `Loading`, `EmptyState` and `ErrorState` components.
+* Discovery results, Emergency Stop and Resume now report through toasts.
+* **Navigation:** the current tab is kept in the URL (`#/tracker`), so reload, bookmarks and the phone's back button work.
+* **Mobile:**
+  * **The bottom navigation bar rendered at the top of the screen on phones.** It was inside the header, whose `backdrop-filter` makes `position: fixed` relative to the header. It now sits at the bottom, with Home / Jobs / Approvals (with count) / Tracker / More and 52 px touch targets.
+  * Safe-area insets are handled by the header, bottom nav and page padding (no double padding).
+  * Pinch-zoom is allowed again. Inputs are 16 px on phones so iOS doesn't zoom into them.
+* **PWA:**
+  * PNG icons (192, 512, maskable 512) and a 180 px `apple-touch-icon` (iOS ignores SVG icons).
+  * Relative manifest and paths: the same build works from the Vite server (`/`) and from the backend (`/ui/`). Before, `start_url` pointed at the backend's JSON root.
+  * The service worker is network-first for pages (it was cache-first, so an old build could stick), cache-first for hashed assets, and never caches `/api`. It only registers in a secure context.
+  * Fonts are bundled (`@fontsource`); no requests to Google Fonts.
+  * Browsers opening `http://127.0.0.1:8000/` are redirected to `/ui/`; API clients still get JSON.
+* **iPhone HTTPS:** if `frontend/certs/cert.pem` and `key.pem` exist, the Vite server serves https and Settings shows the `https://` address. `docs/IPHONE.md` covers setup, firewall, fixed IP and mkcert. Certificates are git-ignored.
+* Settings: the phone card has a Copy button and accurate steps. The Emergency Stop text now describes the persistent halt.
+* Fixed wording: the resume-delete confirmation now says prepared applications can no longer attach the deleted file (drafts store only the resume ID).
+
+**Test results (executed 2026-11-26)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–8, 149 tests) | **PASS** 149/149; 9 new in `tests/test_stage8_frontend_api.py`. They cover ordering, latest-evaluation wins, facets, filters, pagination and clamping, bad params, PWA files and PNG signatures, the root redirect, and network info |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| Frontend build | **PASS** |
+| Browser check | **Desktop:** Opportunities order, page 2, confirm on an ineligible job, shortlist toast, details, hash kept on reload. **iPhone-size (390×844, touch):** all 9 pages with no horizontal overflow, bottom nav at the screen bottom, More → Reports, back button, 16 px inputs, bundled font loaded. No page errors |
+
+**Remaining limitations**
+* Not yet tried on a real iPhone (Safari, Add to Home Screen, mkcert trust).
+* The LAN path is still the Vite dev server from `start.bat`. A LAN access token and a single production server are Stage 9/10.
+

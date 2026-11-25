@@ -1,17 +1,44 @@
 @import "tailwindcss";
 
+/* Fonts are bundled with the app (no requests to Google Fonts; works offline). */
+@import "@fontsource/plus-jakarta-sans/400.css";
+@import "@fontsource/plus-jakarta-sans/500.css";
+@import "@fontsource/plus-jakarta-sans/600.css";
+@import "@fontsource/plus-jakarta-sans/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-tap-highlight-color: transparent;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
+    /* top/bottom insets are handled by the sticky header and the bottom nav */
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+  }
+  /* iOS Safari zooms into inputs smaller than 16px; keep them at 16px on phones instead of disabling zoom. */
+  @media (max-width: 640px) {
+    input, select, textarea { font-size: 16px !important; }
   }
   code, pre {
     font-family: 'JetBrains Mono', monospace;
   }
+}
+
+/* iPhone notch / home-indicator insets (used by the sticky header, bottom nav and page padding) */
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pb-mobile-nav {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
 }
 
 /* Custom scrollbar */
