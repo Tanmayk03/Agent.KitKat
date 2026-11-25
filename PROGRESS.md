@@ -370,3 +370,43 @@
 **Remaining limitations**
 * The grounding checker is rule-based. It catches the common invented claims (skills, numbers, employers, CGPA, certifications) but not every possible exaggeration ("led a team"), so you still read the text.
 * Follow-up dates are stored and sortable, but there are no reminders yet (Stage 7 daily summary).
+
+
+## Stage 6: Browser automation and human approval (2026-11-25)
+
+**Changed**
+* **Label-based form mapping** (`backend/agents/form_mapper.py`): a script inside the page lists every form control together with its human-readable question. It looks at `<label for>`, wrapping labels, `aria-label`/`aria-labelledby`, fieldset legends, nearby label elements and, for radios/checkboxes, the question text before them. Each control is tagged with `data-kk`, so it can be targeted exactly. The old approach guessed from `name*='first'`-style substrings.
+* **Classifier:** decides from the question text, never from one attribute, whether a field is:
+  * a profile value
+  * the resume upload
+  * the cover letter (including Lever's "Additional information")
+  * a prepared screening answer
+  * **sensitive**: gender, race, veteran, disability, visa/sponsorship, work authorisation, date of birth, consent/declaration/certify, background check, salary history, … These are **never answered**.
+  * unknown
+  Radio and checkbox questions are always left to you. Dropdowns are filled only when an option matches your value (e.g. graduation year 2027).
+* **Site adapters** (`backend/agents/site_adapters.py`):
+  * **Greenhouse** (form on the job page), **Lever** (opens `/apply`) and **Ashby** (opens `/application`) are recognised by URL or page markup.
+  * Other sites use the generic label-based path, with a "review carefully" note.
+  * **Unsupported**: LinkedIn, Naukri, Indeed, Internshala, Workday, Glassdoor, Wellfound, Instahyre, foundit, Unstop, Cutshort, Hirist. These return `unsupported_site` with the reason, and no browser is opened.
+* **Preview:** `POST /api/browser/preview/{draft_id}` opens the page and returns the per-field plan plus a screenshot. Nothing is typed or clicked. Plan actions: will fill / select / upload, already filled, needs your input, sensitive, you answer.
+* **Fill** carries out only the planned actions and records each field's result. It then re-reads the form and pauses with the **question text** of any required field still empty (previously it reported internal names like `mandatory_background_check_consent`).
+* **Form state** (`applications.form_state`): adapter, mode, status, time, and per-field label/action/result (values are not duplicated). Noteworthy outcomes are added to the application history.
+* **Prepared-application export:** `GET /api/applications/drafts/{id}/export` returns Markdown with the form values, answers, cover letter, flagged claims and what to answer yourself. The Tracker's "Copy prepared application" button uses it.
+* **Emergency Stop is now a persistent halt:**
+  * It closes every browser, refuses browser runs and previews, refuses manual, background and scheduled discovery (HTTP 423), and pauses the daily schedule.
+  * It survives restarts until you press **Resume automation** in the red banner; the schedule comes back if it was enabled.
+* **UI:**
+  * Tracker drawer: **Preview form** (table of what will happen per field) and **Copy prepared application**.
+  * Red persistent halt banner with Resume.
+
+**Test results (executed 2026-11-25)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–6, 129 tests) | **PASS** 129/129 (7 Playwright tests against Greenhouse-, Lever- and Ashby-style pages in real Chromium) |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS**. test_phase6 now asserts label-based logs and that the work-authorisation/sponsorship radios are classified sensitive |
+| Browser check | Tracker preview of a Greenhouse-style form, prepared-application export for a LinkedIn job, halt banner |
+
+**Remaining limitations**
+* The ATS pages in the tests are **reconstructions** of Greenhouse/Lever/Ashby markup. Real sites change their HTML and may render with JavaScript widgets (custom dropdowns, multi-step forms) that are reported as "you answer" rather than filled. **Run a Preview on a real posting before relying on Fill.**
+* Custom (non-`<select>`) dropdown widgets and multi-page forms are not automated.
+* Cover letters are pasted as text only; cover-letter *file* uploads are left to you.

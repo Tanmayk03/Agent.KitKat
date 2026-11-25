@@ -119,6 +119,8 @@ class DiscoveryService:
         run_id: Optional[str] = None,
     ) -> DiscoveryRunResult:
         """Execute one discovery cycle and persist its history."""
+        from backend.services.halt import ensure_not_halted
+        await ensure_not_halted(db)
         if run_id is None:
             run_id = await cls.create_run_record(db, trigger)
         run = (await db.execute(select(DiscoveryRun).where(DiscoveryRun.id == run_id))).scalars().first()

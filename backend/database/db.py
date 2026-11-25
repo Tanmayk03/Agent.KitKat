@@ -94,6 +94,8 @@ async def init_db() -> None:
             "ALTER TABLE applications ADD COLUMN notes TEXT",
             "ALTER TABLE applications ADD COLUMN follow_up_date VARCHAR(10)",
             "CREATE INDEX IF NOT EXISTS ix_applications_stage ON applications (stage)",
+            # Stage 6
+            "ALTER TABLE applications ADD COLUMN form_state JSON",
         ]
         for stmt in migrations:
             try:

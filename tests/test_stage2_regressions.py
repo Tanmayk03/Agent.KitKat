@@ -168,9 +168,10 @@ async def test_browser_never_answers_sensitive_radios_or_misplaces_cover_letter(
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         await page.goto(f"{form_server}/form")
-        await browser_agent._fill_form_fields(
-            page, {"form_field_values": {"first_name": "T"}, "cover_letter": "My letter", "custom_answers": {}}, None, lambda m: None
-        )
+        from backend.agents.form_mapper import EXTRACT_FIELDS_JS, plan_fields
+        plan = plan_fields(await page.evaluate(EXTRACT_FIELDS_JS),
+                           {"form_field_values": {"first_name": "T"}, "cover_letter": "My letter", "custom_answers": {}}, False)
+        await browser_agent._apply_plan(page, plan, None, lambda m: None)
         assert not await page.locator("#dis_yes").is_checked()
         assert await page.locator("input[name='work_authorization']:checked").count() == 0
         assert await page.locator("#other").input_value() == ""

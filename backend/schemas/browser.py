@@ -3,7 +3,7 @@ Agent KitKat - Browser Automation Schemas
 Pydantic models for browser automation requests, results, and emergency controls.
 """
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -38,6 +38,9 @@ class BrowserRunResult(BaseModel):
     pre_submit_screenshot: Optional[str] = None
     post_submit_screenshot: Optional[str] = None
     logs: List[str] = Field(default_factory=list)
+    adapter: Optional[str] = Field(None, description="greenhouse | lever | ashby | generic | unsupported")
+    form_plan: List[Dict[str, Any]] = Field(default_factory=list, description="Per-field plan / outcome")
+    form_summary: Dict[str, int] = Field(default_factory=dict)
 
 
 class EmergencyStopResponse(BaseModel):
@@ -49,5 +52,6 @@ class EmergencyStopResponse(BaseModel):
 
 class BrowserStatusResponse(BaseModel):
     """Live status of browser automation worker."""
+    halted: bool = False
     is_active: bool
     active_draft_ids: List[str] = Field(default_factory=list)

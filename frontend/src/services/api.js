@@ -242,6 +242,27 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Map the application form and show what would be filled. Types nothing.
+  async previewApplicationForm(draftId) {
+    const res = await fetch(`${BASE_URL}/api/browser/preview/${draftId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ headless: true }),
+    });
+    return handleResponse(res);
+  },
+
+  async getDraftExport(draftId) {
+    const res = await fetch(`${BASE_URL}/api/applications/drafts/${draftId}/export`);
+    if (!res.ok) return handleResponse(res);
+    return res.text();
+  },
+
+  async resumeAutomation() {
+    const res = await fetch(`${BASE_URL}/api/browser/resume`, { method: 'POST' });
+    return handleResponse(res);
+  },
+
   async emergencyStop() {
     const res = await fetch(`${BASE_URL}/api/browser/emergency-stop`, {
       method: 'POST',

@@ -266,6 +266,46 @@ class ApplicationService:
         await session.commit()
         return await ApplicationService.get_draft(session, draft.id)
 
+    @staticmethod
+    async def export_draft(session: AsyncSession, draft_id: str) -> str:
+        """A copy-paste-ready prepared application (for sites Agent KitKat must not automate)."""
+        row = (await session.execute(
+            select(ApplicationDraft, Job).join(Job, ApplicationDraft.job_id == Job.id).where(ApplicationDraft.id == draft_id)
+        )).first()
+        if not row:
+            raise ValueError(f"Draft '{draft_id}' not found.")
+        draft, job = row
+        from backend.agents.site_adapters import adapter_for
+        adapter = adapter_for(job.url or "")
+        labels = {"full_name": "Full name", "first_name": "First name", "last_name": "Last name", "email": "Email",
+                  "phone": "Phone", "location": "Location", "linkedin_url": "LinkedIn", "github_url": "GitHub",
+                  "portfolio_url": "Portfolio", "degree": "Degree", "major": "Major", "university": "University",
+                  "cgpa": "CGPA", "graduation_year": "Graduation year"}
+        answer_labels = {"why_join": "Why do you want to join?", "relevant_project": "Most relevant project",
+                         "availability": "Availability", "salary_expectation": "Stipend / salary expectation"}
+        lines = [f"# Application: {job.title} at {job.company}", ""]
+        if job.url:
+            lines.append(f"Apply here: {job.url}")
+        if not adapter.supported:
+            lines.append(f"Why this is manual: {adapter.reason}")
+        lines += ["", f"Draft version {draft.current_version or 1}", "", "## Form fields", ""]
+        for key, label in labels.items():
+            val = (draft.form_field_values or {}).get(key)
+            lines.append(f"- {label}: {val if val else '(missing in your profile)'}")
+        lines += ["", "## Screening answers", ""]
+        for key, val in (draft.custom_answers or {}).items():
+            shown = "(write your own answer)" if val == "NEEDS_YOUR_INPUT" else val
+            lines.append(f"**{answer_labels.get(key, key)}**  \n{shown}\n")
+        lines += ["## Cover letter", "", draft.cover_letter or "(none)", ""]
+        if draft.grounding_report:
+            lines += ["## Check before sending", ""]
+            lines += [f"- {i['issue']} (\"{i['sentence'][:120]}\")" for i in draft.grounding_report]
+            lines.append("")
+        lines += ["## Answer yourself", "",
+                  "- Work authorisation, visa sponsorship, demographic and legal/consent questions.",
+                  "- After applying, open this job in the Tracker and move it to *Submitted* (add the confirmation ID if you get one)."]
+        return "\n".join(lines)
+
     # ------------------------------------------------------------------ approvals
     @staticmethod
     async def list_approvals(session: AsyncSession) -> List[ApprovalRequestItem]:
@@ -413,7 +453,7 @@ class ApplicationService:
             resume_id=app.resume_id, resume_file_name=app.resume_file_name, confirmation_id=app.confirmation_id,
             notes=app.notes, follow_up_date=app.follow_up_date,
             pre_submit_screenshot=app.pre_submit_screenshot, post_submit_screenshot=app.post_submit_screenshot,
-            submission_method=app.submission_method or "manual", submission_result=app.submission_result,
+            form_state=app.form_state, submission_method=app.submission_method or "manual", submission_result=app.submission_result,
             failure_reason=app.failure_reason, applied_at=app.applied_at,
             updated_at=app.updated_at or app.created_at, created_at=app.created_at,
         )

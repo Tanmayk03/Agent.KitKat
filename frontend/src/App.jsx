@@ -20,6 +20,7 @@ export default function App() {
   const [schedulerStatus, setSchedulerStatus] = useState(null);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [emergencyAlert, setEmergencyAlert] = useState(null);
+  const [halted, setHalted] = useState(false);
   const [discoveryRun, setDiscoveryRun] = useState(null); // live background run (progress)
   const [healthRefreshKey, setHealthRefreshKey] = useState(0);
 
@@ -48,6 +49,7 @@ export default function App() {
 
   useEffect(() => {
     loadInitialData();
+    api.getBrowserStatus().then((st) => setHalted(!!st.halted)).catch(() => {});
 
     // Periodic lightweight refresh for pending approvals count every 20 seconds
     const interval = setInterval(async () => {
@@ -65,8 +67,9 @@ export default function App() {
   const handleEmergencyStop = async () => {
     try {
       const res = await api.emergencyStop();
-      setEmergencyAlert(res.message || 'Emergency Stop Activated: All active browser sessions terminated.');
-      setTimeout(() => setEmergencyAlert(null), 5000);
+      setHalted(true);
+      setEmergencyAlert(res.message || 'Emergency Stop: all automation halted.');
+      setTimeout(() => setEmergencyAlert(null), 6000);
     } catch (err) {
       alert(`Emergency stop failed: ${err.message}`);
     }
@@ -115,6 +118,26 @@ export default function App() {
         onEmergencyStop={handleEmergencyStop}
         pendingApprovalsCount={pendingApprovalsCount}
       />
+
+      {/* Persistent halt banner: automation stays stopped until you resume */}
+      {halted && (
+        <div className="bg-red-950/60 border-b border-red-800/50 text-red-100 text-xs sm:text-sm py-2.5 px-4 flex flex-wrap items-center justify-center gap-3" role="alert">
+          <span>Automation is halted by Emergency Stop: no browser runs, no discovery, schedule paused.</span>
+          <button
+            onClick={async () => {
+              try {
+                const st = await api.resumeAutomation();
+                setHalted(!!st.halted);
+              } catch (err) {
+                alert(`Could not resume: ${err.message}`);
+              }
+            }}
+            className="px-2.5 py-1 rounded-md bg-red-100 text-red-950 font-medium"
+          >
+            Resume automation
+          </button>
+        </div>
+      )}
 
       {/* Emergency Alert Toast Banner */}
       {emergencyAlert && (

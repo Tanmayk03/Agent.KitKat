@@ -26,6 +26,16 @@ const AUTOMATION_NOTE = {
   paused_unknown_field: 'Paused: questions need your answer',
   halted_emergency: 'Stopped by emergency stop',
   failed: 'Automation failed',
+  unsupported_site: 'Site not supported: apply manually (copy prepared application)',
+  previewed: 'Form previewed',
+};
+const ACTION_STYLE = {
+  fill: 'text-emerald-300', select: 'text-emerald-300', upload: 'text-emerald-300', keep: 'text-zinc-400',
+  needs_input: 'text-amber-300', sensitive: 'text-red-300', manual: 'text-zinc-400',
+};
+const ACTION_LABEL = {
+  fill: 'Will fill', select: 'Will select', upload: 'Will upload resume', keep: 'Already filled',
+  needs_input: 'Needs your input', sensitive: 'Sensitive: you answer', manual: 'You answer',
 };
 const SORTS = [
   ['updated', 'Recently updated'],
@@ -64,6 +74,9 @@ export default function TrackerPage() {
   const [form, setForm] = useState({});
   const [runningDraftId, setRunningDraftId] = useState(null);
   const [screenshot, setScreenshot] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [exportText, setExportText] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -88,11 +101,41 @@ export default function TrackerPage() {
 
   const open = async (app) => {
     setSelected(app);
+    setPreview(app.form_state ? { form_plan: app.form_state.fields || [], adapter: app.form_state.adapter, status: app.form_state.status, mode: app.form_state.mode } : null);
+    setExportText(null);
     setForm({ stage: '', note: '', notes: app.notes || '', confirmation_id: app.confirmation_id || '', follow_up_date: app.follow_up_date || '' });
     try {
       setEvents(await api.getApplicationEvents(app.id));
     } catch {
       setEvents([]);
+    }
+  };
+
+  const runPreview = async () => {
+    try {
+      setPreviewing(true);
+      setError(null);
+      const r = await api.previewApplicationForm(selected.draft_id);
+      setPreview({ ...r, mode: 'preview' });
+      if (r.status === 'unsupported_site' || r.intervention_reason) setError(r.intervention_reason);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const copyExport = async () => {
+    try {
+      const text = await api.getDraftExport(selected.draft_id);
+      setExportText(text);
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        /* clipboard unavailable (http on a LAN IP): the text is shown for manual copy */
+      }
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -305,6 +348,45 @@ export default function TrackerPage() {
                   <button onClick={() => setScreenshot(`/api/browser/screenshots/${selected.draft_id}/post_submit.png`)} className="px-2 py-1 rounded bg-zinc-800 text-zinc-300 text-[11px] flex items-center gap-1">
                     <Eye className="w-3 h-3" /> After submit
                   </button>
+                )}
+              </div>
+            )}
+
+            {selected.draft_id && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {!sent(selected) && (
+                    <button onClick={runPreview} disabled={previewing} className="px-2.5 py-1 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] border border-zinc-700 disabled:opacity-50">
+                      {previewing ? 'Reading form…' : 'Preview form (types nothing)'}
+                    </button>
+                  )}
+                  <button onClick={copyExport} className="px-2.5 py-1 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] border border-zinc-700">
+                    Copy prepared application
+                  </button>
+                </div>
+                {exportText && (
+                  <textarea readOnly rows={8} value={exportText} aria-label="Prepared application" className="w-full p-2 rounded-md bg-zinc-950 border border-zinc-800 text-[11px] font-mono text-zinc-300" />
+                )}
+                {preview?.form_plan?.length > 0 && (
+                  <div className="rounded-lg border border-zinc-800">
+                    <p className="px-2.5 py-1.5 text-[11px] text-zinc-400 border-b border-zinc-800">
+                      {preview.mode === 'preview' ? 'Form preview' : 'Last fill'} · {preview.adapter || 'site'} · {preview.form_plan.length} field(s)
+                    </p>
+                    <table className="w-full text-[11px]">
+                      <tbody className="divide-y divide-zinc-800/60">
+                        {preview.form_plan.map((f) => (
+                          <tr key={f.kk} className="align-top">
+                            <td className="px-2.5 py-1 text-zinc-300">
+                              {f.label}{f.option ? ` · ${f.option}` : ''}{f.required && <span className="text-red-300"> *</span>}
+                            </td>
+                            <td className={`px-2.5 py-1 whitespace-nowrap ${ACTION_STYLE[f.action] || 'text-zinc-400'}`}>
+                              {f.result && f.result !== 'left for you' ? f.result : ACTION_LABEL[f.action] || f.action}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             )}

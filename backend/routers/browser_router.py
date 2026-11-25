@@ -58,12 +58,24 @@ async def run_browser_automation(
     status_code=status.HTTP_200_OK,
     summary="Emergency Stop: Abort all active browser automations"
 )
-async def emergency_stop_browser() -> EmergencyStopResponse:
+async def emergency_stop_browser(db: AsyncSession = Depends(get_db)) -> EmergencyStopResponse:
     """
-    Kill-switch that immediately halts all active browser automation tasks,
-    closes open browser windows, and cleans up resources.
+    Kill-switch: closes every browser window, then HALTS all automation (browser runs,
+    discovery, the daily schedule) until you call /api/browser/resume.
     """
-    return await BrowserService.emergency_stop()
+    return await BrowserService.emergency_stop(db)
+
+
+@router.post("/resume", response_model=BrowserStatusResponse, summary="Resume automation after an Emergency Stop")
+async def resume_automation(db: AsyncSession = Depends(get_db)) -> BrowserStatusResponse:
+    return await BrowserService.resume(db)
+
+
+@router.post("/preview/{draft_id}", response_model=BrowserRunResult,
+             summary="Map the application form and show what would be filled (types nothing)")
+async def preview_application_form(draft_id: str, payload: BrowserRunRequest = BrowserRunRequest(),
+                                   db: AsyncSession = Depends(get_db)) -> BrowserRunResult:
+    return await BrowserService.preview(db, draft_id, headless=payload.headless)
 
 
 @router.get(
@@ -72,9 +84,9 @@ async def emergency_stop_browser() -> EmergencyStopResponse:
     status_code=status.HTTP_200_OK,
     summary="Get active browser sessions status"
 )
-async def get_browser_status() -> BrowserStatusResponse:
-    """Returns whether any browser automation sessions are actively running."""
-    return BrowserService.get_status()
+async def get_browser_status(db: AsyncSession = Depends(get_db)) -> BrowserStatusResponse:
+    """Whether automation is halted and which browser sessions are running."""
+    return await BrowserService.get_status(db)
 
 
 @router.get(

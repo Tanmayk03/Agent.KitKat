@@ -106,6 +106,14 @@ app.add_middleware(
 )
 
 
+from backend.services.halt import AutomationHaltedError  # noqa: E402
+
+
+@app.exception_handler(AutomationHaltedError)
+async def automation_halted_handler(request: Request, exc: AutomationHaltedError):
+    return JSONResponse(status_code=423, content={"detail": str(exc)})
+
+
 @app.middleware("http")
 async def reject_cross_site_writes(request: Request, call_next):
     """

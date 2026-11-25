@@ -88,6 +88,7 @@ class ApplicationTrackerItem(BaseModel):
     follow_up_date: Optional[str] = None
     pre_submit_screenshot: Optional[str] = None
     post_submit_screenshot: Optional[str] = None
+    form_state: Optional[Dict[str, Any]] = None
     submission_method: str
     submission_result: Optional[str] = None
     failure_reason: Optional[str] = None

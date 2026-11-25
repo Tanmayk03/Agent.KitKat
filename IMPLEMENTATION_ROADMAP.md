@@ -40,7 +40,7 @@ Ordered by risk first, then value. Every stage ends with: tests run and results 
 * 14-status lifecycle as an enum with allowed transitions; `ApplicationEvent` history; notes, follow-up dates, confirmation ID, evidence paths.
 * Tracker: search, filter, sort, pagination, status updates.
 
-## Stage 6: Playwright automation and human approval
+## Stage 6: Playwright automation and human approval ✅
 * Field detection by label text (aria/label/for) instead of name substrings; a field map preview before filling.
 * Adapters for Greenhouse, Lever and Ashby public forms; unsupported-site explanation and a prepared-application export.
 * Save form state (JSON) and step screenshots; review screen shows exactly what will be sent.

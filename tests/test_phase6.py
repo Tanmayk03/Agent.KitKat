@@ -353,11 +353,15 @@ async def run_phase6_tests():
 
         # Check that logs record field filling, radio checks, resume upload, cover letter
         logs_str = " ".join(data1["logs"])
-        assert "first_name" in logs_str
-        assert "Filled field 'email'" in logs_str
-        assert "harshit.sharma@srm.edu" not in logs_str  # personal values are no longer written to logs
-        assert "Uploaded verified resume" in logs_str
-        assert "tailored cover letter" in logs_str
+        # Stage 6: fields are matched by their LABELS; logs name the field, never the value
+        assert "Filled 'First Name" in logs_str
+        assert "Filled 'Email" in logs_str
+        assert "harshit.sharma@srm.edu" not in logs_str  # personal values are never written to logs
+        assert "Uploaded resume to" in logs_str
+        assert "Filled 'Cover Letter" in logs_str
+        plan = {f["label"].rstrip(":"): f for f in data1["form_plan"]}
+        assert plan["Are you authorized to work in India?"]["action"] == "sensitive"
+        assert plan["Will you now or in the future require visa sponsorship?"]["action"] == "sensitive"
         print(f"Pre-submit screenshot verified ({os.path.getsize(data1['pre_submit_screenshot'])} bytes)")
         print(f"Status: {data1['status']}")
         print("✅ Test 1 Passed: Form filled, resume uploaded, cover letter pasted, pre-submit screenshot saved.")
@@ -379,7 +383,7 @@ async def run_phase6_tests():
         assert os.path.getsize(data2["post_submit_screenshot"]) > 0
 
         logs2_str = " ".join(data2["logs"])
-        assert "Submission CONFIRMED by website" in logs2_str
+        assert "Website confirmed submission" in logs2_str
         print(f"Post-submit screenshot verified ({os.path.getsize(data2['post_submit_screenshot'])} bytes)")
         print(f"Status: {data2['status']}")
         print("✅ Test 2 Passed: Application submitted and confirmed by website.")
@@ -427,7 +431,7 @@ async def run_phase6_tests():
         data5 = res5.json()
         assert data5["status"] == "paused_unknown_field"
         assert data5["requires_human_intervention"] is True
-        assert "mandatory_background_check_consent" in data5["intervention_reason"]
+        assert "background verification" in data5["intervention_reason"]  # reported by its label
         print(f"Intervention Reason: {data5['intervention_reason']}")
         print("✅ Test 5 Passed: Agent refused to guess sensitive declaration; paused for human decision.")
 

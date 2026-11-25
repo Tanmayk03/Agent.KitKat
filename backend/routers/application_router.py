@@ -5,6 +5,7 @@ Endpoints for application preparation, approval requests, and application tracki
 
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database.db import get_db
@@ -145,6 +146,15 @@ async def restore_draft_version(draft_id: str, version: int, session: AsyncSessi
         return await application_service.restore_version(session, draft_id, version)
     except ApplicationConflictError as e:
         raise _conflict(e)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get("/drafts/{draft_id}/export", response_class=PlainTextResponse,
+            summary="Prepared application as Markdown (for sites that must be applied to manually)")
+async def export_draft(draft_id: str, session: AsyncSession = Depends(get_db)):
+    try:
+        return PlainTextResponse(await application_service.export_draft(session, draft_id), media_type="text/markdown")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 

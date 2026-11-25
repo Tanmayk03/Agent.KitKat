@@ -2,7 +2,7 @@
 
 Legend: ✅ Working (demonstrated) · 🟡 Partial · 🧩 UI/placeholder only · ❌ Broken · ⬜ Missing · ⛔ Blocked (could not be verified in the audit environment)
 
-Last updated: 2026-11-25, after Stage 5 (applications & tracking). Rows changed in Stages 3/4/5 are marked (S3)/(S4)/(S5). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
+Last updated: 2026-11-25, after Stage 6 (browser automation). Rows changed in Stages 3–6 are marked (S3)…(S6). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
 
 | Area | Feature | Before (audit) | After Stage 2 | Evidence / remaining gap |
 |---|---|---|---|---|
@@ -48,7 +48,12 @@ Last updated: 2026-11-25, after Stage 5 (applications & tracking). Rows changed 
 | Browser | Truthful submission verification | ❌ | ✅ | Before/after visible-text diff; otherwise `submission_unverified` (Playwright test) |
 | Browser | Duplicate-submission guard | ⬜ | ✅ | Test |
 | Browser | Emergency stop | ✅ | ✅ | Existing test |
-| Browser | Site adapters (Greenhouse, Lever, Ashby…) | ⬜ | ⬜ | Stage 6 |
+| Browser | Label-based field mapping + per-field plan (S6) | ⬜ | ✅ | Playwright tests on Greenhouse/Lever/Ashby-style pages |
+| Browser | Sensitive-question classifier (never auto-answered) (S6) | 🟡 | ✅ | 16 classifier cases plus browser tests |
+| Browser | Site adapters Greenhouse / Lever / Ashby / generic; unsupported sites explained (S6) | ⬜ | 🟡 | Tested on reconstructed markup; **real sites ⛔** in sandbox. Preview a real posting first |
+| Browser | Preview mode (types nothing), form state saved (S6) | ⬜ | ✅ | Tests plus browser check |
+| Browser | Prepared-application export for manual sites (S6) | ⬜ | ✅ | Test plus browser check |
+| Browser | Emergency stop = persistent halt of browser, discovery and schedule, with Resume (S6) | 🟡 | ✅ | Test (423 on every automation path) plus browser check |
 | Tracker | 14-stage lifecycle, enforced transitions, event history (S5) | ⬜ | ✅ | Tests |
 | Tracker | Filters, search, sort, pagination, notes, confirmation ID, follow-up date (S5) | ⬜ | ✅ | Tests plus browser check |
 | Tracker | Shortlist from Opportunities; one application per job (S5) | ⬜ | ✅ | Tests |
@@ -59,4 +64,4 @@ Last updated: 2026-11-25, after Stage 5 (applications & tracking). Rows changed 
 | PWA | iPhone install over LAN | 🟡 | 🟡 | Service workers need HTTPS on a LAN IP; Stage 8 |
 | AI | Ollama health and generation | ⛔ | ⛔ | Ollama not available in the audit sandbox |
 
-**Completion estimate:** about 38% at audit → 47% (Stage 2) → 54% (Stage 3) → 61% (Stage 4) → **about 68% after Stage 5**. Weighted over 18 feature areas totalling 120 points; see AUDIT_REPORT.md §7. Main Stage 5 gains: application preparation 30→85%, approvals & tracking 35→90%.
+**Completion estimate:** about 38% at audit → 47% (Stage 2) → 54% (Stage 3) → 61% (Stage 4) → 68% (Stage 5) → **about 74% after Stage 6** (browser automation 30→80%; live ATS sites still unverified). Weighted over 18 feature areas totalling 120 points; see AUDIT_REPORT.md §7.

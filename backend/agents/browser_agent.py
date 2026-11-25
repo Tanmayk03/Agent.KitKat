@@ -1,19 +1,23 @@
 """
 Agent KitKat - Playwright Browser Automation Agent
-Automates opening application forms, auto-filling candidate details,
-uploading verified resume PDF, pasting tailored cover letter,
-capturing pre/post submission screenshots, and verifying submission results.
 
-Strict Safety Rules:
-- Pauses immediately on CAPTCHA / bot challenge (never attempts bypass).
-- Pauses immediately on login / authentication gates.
-- Pauses immediately on unknown required fields or sensitive declarations.
-- Never claims submission without explicit confirmation on page.
-- Provides an immediate Emergency Stop kill-switch.
+Flow for one application:
+  1. Site adapter: unsupported sites (LinkedIn, Naukri, Workday, ...) are refused with an
+     explanation; Lever/Ashby jobs are opened on their application URL.
+  2. Stop at CAPTCHA / bot checks or login walls (never bypassed).
+  3. Map the form by its LABELS (agents/form_mapper.py) and build a plan: what will be filled,
+     what is sensitive (never answered), what needs your input.
+  4. preview mode stops here (screenshot + plan). fill mode fills only planned fields, uploads
+     your resume, pastes the approved cover letter, then re-reads the form.
+  5. Required fields still empty -> paused for you. Otherwise a pre-submit screenshot.
+  6. Submit only when the service layer passed the approval + confirmation gates; success only
+     if a NEW confirmation message appears, else "submission_unverified".
+
+No anti-detection tricks, no auto-answers to legal/demographic/work-authorisation questions.
+Personal values are never written to logs.
 """
 
 import os
-import re
 import asyncio
 import logging
 from datetime import datetime
@@ -23,49 +27,39 @@ from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
 from backend.config import get_settings
 from backend.schemas.browser import BrowserRunResult
+from backend.agents.form_mapper import EXTRACT_FIELDS_JS, plan_fields, summarize_plan
+from backend.agents.site_adapters import DETECT_FORM_JS, adapter_for
 
 logger = logging.getLogger("agent_kitkat.browser_agent")
 settings = get_settings()
 
 
 class BrowserAutomationAgent:
-    """
-    Autonomous agent handling browser interaction for job applications.
-    """
+    """Autonomous agent handling browser interaction for job applications."""
 
     def __init__(self):
         self._active_sessions: Dict[str, Dict[str, Any]] = {}
         self._lock = asyncio.Lock()
 
     def get_active_session_ids(self) -> List[str]:
-        """Return list of draft IDs currently undergoing browser automation."""
         return list(self._active_sessions.keys())
 
     async def emergency_stop(self) -> int:
-        """
-        Emergency stop: immediately terminates all active browser sessions,
-        closes open browser windows, and cleans up resources.
-        """
+        """Immediately close every active browser session."""
         async with self._lock:
             stopped_count = len(self._active_sessions)
-            logger.warning("🚨 EMERGENCY STOP TRIGGERED! Terminating %d active browser sessions...", stopped_count)
-
+            logger.warning("🚨 EMERGENCY STOP: terminating %d browser session(s)", stopped_count)
             for draft_id, session in list(self._active_sessions.items()):
                 try:
-                    # Cancel any running task
                     task = session.get("task")
                     if task and not task.done():
                         task.cancel()
-
-                    # Close browser context / browser
                     browser = session.get("browser")
                     if browser:
                         await browser.close()
                 except Exception as e:
                     logger.error("Error closing browser for draft %s: %s", draft_id, e)
-
             self._active_sessions.clear()
-            logger.info("✅ All active browser sessions successfully halted.")
             return stopped_count
 
     async def run_application_automation(
@@ -76,272 +70,167 @@ class BrowserAutomationAgent:
         resume_file_path: Optional[str] = None,
         auto_submit: bool = False,
         headless: Optional[bool] = None,
+        mode: str = "fill",
     ) -> BrowserRunResult:
-        """
-        Execute the end-to-end browser automation flow for a job application.
-        """
+        """mode: 'preview' (map the form, change nothing) or 'fill' (fill, optionally submit)."""
         logs: List[str] = []
         is_headless = headless if headless is not None else settings.BROWSER_HEADLESS
-
-        application_url = job_data.get("application_url") or ""
-        company_name = job_data.get("company_name") or "Unknown Company"
-        job_title = job_data.get("title") or "Unknown Role"
-        job_id = job_data.get("id") or ""
+        url = job_data.get("application_url") or ""
+        base = dict(draft_id=draft_id, job_id=job_data.get("id") or "", company_name=job_data.get("company_name") or "Unknown Company",
+                    job_title=job_data.get("title") or "Unknown Role", application_url=url)
 
         def log(msg: str):
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            entry = f"[{timestamp}] {msg}"
+            entry = f"[{datetime.now().strftime('%H:%M:%S')}] {msg}"
             logs.append(entry)
             logger.info("Draft %s: %s", draft_id[:8], msg)
 
-        log(f"Starting browser automation for {job_title} at {company_name}")
-        log(f"Target URL: {application_url}")
-        log(f"Submission Mode: {'AUTO_SUBMIT' if auto_submit else 'PREPARE_AND_REVIEW'}")
+        def result(status: str, **kw) -> BrowserRunResult:
+            return BrowserRunResult(**base, status=status, logs=logs, **kw)
 
-        if not application_url or not (application_url.startswith("http://") or application_url.startswith("https://") or application_url.startswith("file://")):
+        log(f"{'Preview' if mode == 'preview' else 'Fill'} for {base['job_title']} at {base['company_name']}"
+            + (" (will submit after filling)" if auto_submit else ""))
+
+        if not url.startswith(("http://", "https://", "file://")):
             log("❌ Invalid or missing application URL.")
-            return BrowserRunResult(
-                draft_id=draft_id,
-                job_id=job_id,
-                company_name=company_name,
-                job_title=job_title,
-                application_url=application_url,
-                status="failed",
-                requires_human_intervention=True,
-                intervention_reason="Invalid or missing application URL",
-                logs=logs
-            )
+            return result("failed", requires_human_intervention=True, intervention_reason="Invalid or missing application URL")
 
-        # Prepare screenshot directory
+        adapter = adapter_for(url)
+        if not adapter.supported:
+            log(f"⛔ Unsupported site: {adapter.reason}")
+            return result("unsupported_site", requires_human_intervention=True, adapter=adapter.name,
+                          intervention_reason=f"{adapter.reason} Use 'Copy prepared application' and apply yourself, "
+                                              "then mark it Submitted in the tracker.")
+
         screenshots_dir = os.path.join(settings.SCREENSHOTS_DIR, draft_id)
         os.makedirs(screenshots_dir, exist_ok=True)
-        pre_submit_path = os.path.join(screenshots_dir, "pre_submit.png")
+        pre_submit_path = os.path.join(screenshots_dir, "preview.png" if mode == "preview" else "pre_submit.png")
         post_submit_path = os.path.join(screenshots_dir, "post_submit.png")
 
         playwright_obj = None
         browser: Optional[Browser] = None
         current_task = asyncio.current_task()
+        plan: List[Dict[str, Any]] = []
+        adapter_name = adapter.name
 
         try:
             playwright_obj = await async_playwright().start()
-            # No anti-detection flags: the agent never tries to hide that it is automated.
+            # No anti-detection flags: the agent never hides that it is automated.
             browser = await playwright_obj.chromium.launch(headless=is_headless)
-
-            # Register active session for emergency stop
             async with self._lock:
-                self._active_sessions[draft_id] = {
-                    "task": current_task,
-                    "browser": browser,
-                    "draft_id": draft_id
-                }
-
-            context: BrowserContext = await browser.new_context(
-                user_agent=settings.BROWSER_USER_AGENT,
-                viewport={"width": 1280, "height": 900}
-            )
+                self._active_sessions[draft_id] = {"task": current_task, "browser": browser, "draft_id": draft_id}
+            context: BrowserContext = await browser.new_context(user_agent=settings.BROWSER_USER_AGENT,
+                                                                viewport={"width": 1280, "height": 900})
             page: Page = await context.new_page()
 
-            log("Browser launched successfully. Navigating to application page...")
-
-            # 1. Navigation
+            if adapter.apply_url != url:
+                log(f"{adapter.note}: opening {adapter.apply_url}")
             try:
-                await page.goto(application_url, timeout=settings.BROWSER_TIMEOUT_MS, wait_until="domcontentloaded")
-                await page.wait_for_timeout(1500)  # Allow dynamic JS scripts to render
+                await page.goto(adapter.apply_url, timeout=settings.BROWSER_TIMEOUT_MS, wait_until="domcontentloaded")
+                await page.wait_for_timeout(1500)
             except PlaywrightTimeoutError:
-                log("⚠️ Navigation timed out. Checking if page partially rendered...")
+                log("⚠️ Navigation timed out; checking what rendered.")
+            log(f"Page loaded: {page.url}")
 
-            current_url = page.url
-            log(f"Page loaded: {current_url}")
-
-            # 2. Check for Anti-Bot / CAPTCHA protection
             has_captcha, captcha_desc = await self._detect_captcha(page)
             if has_captcha:
-                log(f"🛑 CAPTCHA / Anti-bot gate detected: {captcha_desc}")
-                log("Agent will NOT bypass security gates. Pausing for human verification.")
+                log(f"🛑 CAPTCHA / bot check: {captcha_desc}. Not bypassing.")
                 await page.screenshot(path=pre_submit_path, full_page=True)
-                return BrowserRunResult(
-                    draft_id=draft_id,
-                    job_id=job_id,
-                    company_name=company_name,
-                    job_title=job_title,
-                    application_url=application_url,
-                    status="paused_captcha",
-                    requires_human_intervention=True,
-                    intervention_reason=f"CAPTCHA / Bot verification gate detected ({captcha_desc}). Please complete manually.",
-                    pre_submit_screenshot=pre_submit_path,
-                    logs=logs
-                )
-
-            # 3. Check for Login wall
+                return result("paused_captcha", requires_human_intervention=True, adapter=adapter_name,
+                              intervention_reason=f"CAPTCHA / bot verification ({captcha_desc}). Please complete it manually.",
+                              pre_submit_screenshot=pre_submit_path)
             has_login, login_desc = await self._detect_login_wall(page)
             if has_login:
-                log(f"🔒 Login wall detected: {login_desc}")
-                log("Agent paused. Authentication is required before applying.")
+                log(f"🔒 Login required: {login_desc}")
                 await page.screenshot(path=pre_submit_path, full_page=True)
-                return BrowserRunResult(
-                    draft_id=draft_id,
-                    job_id=job_id,
-                    company_name=company_name,
-                    job_title=job_title,
-                    application_url=application_url,
-                    status="paused_login",
-                    requires_human_intervention=True,
-                    intervention_reason=f"Login or authentication required ({login_desc}).",
-                    pre_submit_screenshot=pre_submit_path,
-                    logs=logs
-                )
+                return result("paused_login", requires_human_intervention=True, adapter=adapter_name,
+                              intervention_reason=f"Login or authentication required ({login_desc}).",
+                              pre_submit_screenshot=pre_submit_path)
 
-            # 4. Fill Application Form Fields
-            log("Analyzing page inputs and filling verified candidate profile details...")
-            fill_summary = await self._fill_form_fields(page, draft_data, resume_file_path, log)
-            log(f"Form filling completed: {fill_summary['filled_count']} fields filled.")
+            detected = await page.evaluate(DETECT_FORM_JS)
+            if detected and adapter_name == "generic":
+                adapter_name = detected
+                log(f"Recognised a {detected.title()} application form.")
 
-            # 5. Check for unknown or unfilled required fields
-            unfilled_reqs = await self._check_unfilled_required_fields(page, log)
-            if unfilled_reqs:
-                log(f"⚠️ Mandatory questions or declarations require human input: {', '.join(unfilled_reqs)}")
+            resume_ok = bool(resume_file_path and os.path.exists(resume_file_path))
+            fields = await page.evaluate(EXTRACT_FIELDS_JS)
+            plan = plan_fields(fields, draft_data, resume_ok)
+            summary = summarize_plan(plan)
+            log(f"Mapped {len(plan)} form field(s): " + ", ".join(f"{k}={v}" for k, v in summary.items()))
+            if not plan:
                 await page.screenshot(path=pre_submit_path, full_page=True)
-                return BrowserRunResult(
-                    draft_id=draft_id,
-                    job_id=job_id,
-                    company_name=company_name,
-                    job_title=job_title,
-                    application_url=application_url,
-                    status="paused_unknown_field",
-                    requires_human_intervention=True,
-                    intervention_reason=f"Unanswered required fields or sensitive declarations: {', '.join(unfilled_reqs)}",
-                    pre_submit_screenshot=pre_submit_path,
-                    logs=logs
-                )
+                return result("failed", requires_human_intervention=True, adapter=adapter_name,
+                              intervention_reason="No application form found on this page.", pre_submit_screenshot=pre_submit_path)
 
-            # 6. Capture Pre-Submit Screenshot
+            if mode == "preview":
+                await page.screenshot(path=pre_submit_path, full_page=True)
+                log("Preview only: nothing was typed or clicked.")
+                return result("previewed", requires_human_intervention=False, adapter=adapter_name,
+                              form_plan=plan, form_summary=summary, pre_submit_screenshot=pre_submit_path)
+
+            # ---- fill ---------------------------------------------------------------------
+            await self._apply_plan(page, plan, resume_file_path, log)
+
+            # Re-read the form: what required questions are still empty?
+            after = await page.evaluate(EXTRACT_FIELDS_JS)
+            unfilled = self._required_unfilled(after)
+            summary = summarize_plan(plan)
             await page.screenshot(path=pre_submit_path, full_page=True)
-            log(f"Pre-submission screenshot saved to {pre_submit_path}")
+            log("Pre-submit screenshot saved.")
+            if unfilled:
+                log(f"⚠️ Required questions need you: {', '.join(unfilled)}")
+                return result("paused_unknown_field", requires_human_intervention=True, adapter=adapter_name,
+                              intervention_reason=f"Required questions need your answer: {', '.join(unfilled)}",
+                              form_plan=plan, form_summary=summary, pre_submit_screenshot=pre_submit_path)
 
-            # 7. Decide whether to Submit or Prepare Only
             if not auto_submit:
-                log("Review Mode: Application prepared and filled. Pausing for human approval (auto_submit=False).")
-                return BrowserRunResult(
-                    draft_id=draft_id,
-                    job_id=job_id,
-                    company_name=company_name,
-                    job_title=job_title,
-                    application_url=application_url,
-                    status="filled_ready_for_review",
-                    requires_human_intervention=True,
-                    intervention_reason="Application filled and ready for your final manual review.",
-                    pre_submit_screenshot=pre_submit_path,
-                    logs=logs
-                )
+                log("Filled. Waiting for your review (nothing submitted).")
+                return result("filled_ready_for_review", requires_human_intervention=True, adapter=adapter_name,
+                              intervention_reason="Application filled and ready for your final review.",
+                              form_plan=plan, form_summary=summary, pre_submit_screenshot=pre_submit_path)
 
-            # 8. Submit Application (When Auto-Submit is explicitly enabled)
-            log("Auto-submission authorized. Locating submit button...")
             submit_button = await self._find_submit_button(page)
             if not submit_button:
-                log("⚠️ Could not reliably identify the submit button on the application form.")
-                return BrowserRunResult(
-                    draft_id=draft_id,
-                    job_id=job_id,
-                    company_name=company_name,
-                    job_title=job_title,
-                    application_url=application_url,
-                    status="filled_ready_for_review",
-                    requires_human_intervention=True,
-                    intervention_reason="Could not reliably locate the submit button. Please submit manually.",
-                    pre_submit_screenshot=pre_submit_path,
-                    logs=logs
-                )
+                log("⚠️ Could not reliably identify the submit button.")
+                return result("filled_ready_for_review", requires_human_intervention=True, adapter=adapter_name,
+                              intervention_reason="Could not reliably locate the submit button. Please submit manually.",
+                              form_plan=plan, form_summary=summary, pre_submit_screenshot=pre_submit_path)
 
             pre_click_text = await self._visible_text(page)
             pre_click_url = page.url
-            log("Submitting application...")
+            log("Submitting application (you approved and confirmed this submission)...")
             try:
                 await submit_button.click()
-                await page.wait_for_timeout(3000)  # Wait for submission request to settle
+                await page.wait_for_timeout(3000)
             except Exception as e:
-                log(f"Error clicking submit button: {e}")
-                return BrowserRunResult(
-                    draft_id=draft_id,
-                    job_id=job_id,
-                    company_name=company_name,
-                    job_title=job_title,
-                    application_url=application_url,
-                    status="failed",
-                    requires_human_intervention=True,
-                    intervention_reason=f"Failed to trigger submission: {str(e)}",
-                    pre_submit_screenshot=pre_submit_path,
-                    logs=logs
-                )
+                log(f"Error clicking submit: {e}")
+                return result("failed", requires_human_intervention=True, adapter=adapter_name,
+                              intervention_reason=f"Failed to trigger submission: {e}",
+                              form_plan=plan, form_summary=summary, pre_submit_screenshot=pre_submit_path)
 
-            # 9. Verify Submission Success
             await page.screenshot(path=post_submit_path, full_page=True)
-            log(f"Post-submission screenshot saved to {post_submit_path}")
-
-            submission_confirmed, confirm_text = await self._verify_submission_confirmation(page, pre_click_text, pre_click_url)
-            if submission_confirmed:
-                log(f"🎉 Submission CONFIRMED by website: '{confirm_text}'")
-                return BrowserRunResult(
-                    draft_id=draft_id,
-                    job_id=job_id,
-                    company_name=company_name,
-                    job_title=job_title,
-                    application_url=application_url,
-                    status="submitted",
-                    requires_human_intervention=False,
-                    pre_submit_screenshot=pre_submit_path,
-                    post_submit_screenshot=post_submit_path,
-                    logs=logs
-                )
-            else:
-                log("⚠️ Website did not explicitly confirm submission. Status held for verification.")
-                return BrowserRunResult(
-                    draft_id=draft_id,
-                    job_id=job_id,
-                    company_name=company_name,
-                    job_title=job_title,
-                    application_url=application_url,
-                    status="submission_unverified",
-                    requires_human_intervention=True,
-                    intervention_reason=(
-                        "The submit button was clicked, but no new confirmation message appeared. "
-                        "Check your email or the site before assuming it was received."
-                    ),
-                    pre_submit_screenshot=pre_submit_path,
-                    post_submit_screenshot=post_submit_path,
-                    logs=logs
-                )
+            confirmed, phrase = await self._verify_submission_confirmation(page, pre_click_text, pre_click_url)
+            if confirmed:
+                log(f"🎉 Website confirmed submission: '{phrase}'")
+                return result("submitted", requires_human_intervention=False, adapter=adapter_name, form_plan=plan,
+                              form_summary=summary, pre_submit_screenshot=pre_submit_path, post_submit_screenshot=post_submit_path)
+            log("⚠️ No new confirmation message after clicking Submit.")
+            return result("submission_unverified", requires_human_intervention=True, adapter=adapter_name,
+                          intervention_reason=("The submit button was clicked, but no new confirmation message appeared. "
+                                               "Check your email or the site before assuming it was received."),
+                          form_plan=plan, form_summary=summary, pre_submit_screenshot=pre_submit_path,
+                          post_submit_screenshot=post_submit_path)
 
         except asyncio.CancelledError:
-            log("🚨 Process was CANCELLED via Emergency Stop.")
-            return BrowserRunResult(
-                draft_id=draft_id,
-                job_id=job_id,
-                company_name=company_name,
-                job_title=job_title,
-                application_url=application_url,
-                status="halted_emergency",
-                requires_human_intervention=True,
-                intervention_reason="Emergency stop triggered by user.",
-                logs=logs
-            )
+            log("🚨 Cancelled by Emergency Stop.")
+            return result("halted_emergency", requires_human_intervention=True, adapter=adapter_name,
+                          intervention_reason="Emergency stop triggered by user.", form_plan=plan)
         except Exception as e:
-            log(f"❌ Unexpected browser error: {str(e)}")
-            return BrowserRunResult(
-                draft_id=draft_id,
-                job_id=job_id,
-                company_name=company_name,
-                job_title=job_title,
-                application_url=application_url,
-                status="failed",
-                requires_human_intervention=True,
-                intervention_reason=f"Automation error: {str(e)}",
-                logs=logs
-            )
+            log(f"❌ Unexpected browser error: {e}")
+            return result("failed", requires_human_intervention=True, adapter=adapter_name,
+                          intervention_reason=f"Automation error: {e}", form_plan=plan)
         finally:
-            # Clean up active session
             async with self._lock:
                 self._active_sessions.pop(draft_id, None)
-
             if browser:
                 try:
                     await browser.close()
@@ -352,6 +241,43 @@ class BrowserAutomationAgent:
                     await playwright_obj.stop()
                 except Exception:
                     pass
+
+    async def _apply_plan(self, page: Page, plan: List[Dict[str, Any]], resume_file_path: Optional[str], log) -> None:
+        """Perform only the planned fill/select/upload actions; record the outcome per field."""
+        for entry in plan:
+            action = entry["action"]
+            if action not in ("fill", "select", "upload"):
+                entry["result"] = "left for you" if action in ("manual", "sensitive", "needs_input") else "unchanged"
+                continue
+            loc = page.locator(f'[data-kk="{entry["kk"]}"]').first
+            try:
+                if action == "upload":
+                    await loc.set_input_files(resume_file_path)
+                elif action == "select":
+                    await loc.select_option(label=entry["value"])
+                else:
+                    await loc.fill(str(entry["value"]))
+                entry["result"] = "done"
+                log(f"{'Uploaded resume to' if action == 'upload' else 'Filled'} '{entry['label'][:60]}'")
+            except Exception as e:
+                entry["result"] = f"failed: {str(e)[:120]}"
+                log(f"⚠️ Could not fill '{entry['label'][:60]}': {str(e)[:120]}")
+
+    @staticmethod
+    def _required_unfilled(fields: List[Dict[str, Any]]) -> List[str]:
+        """Labels of required questions that are still empty (radio groups count once)."""
+        missing, groups = [], {}
+        for f in fields:
+            if not f.get("required"):
+                continue
+            if f.get("type") == "radio":
+                key = f.get("name") or f.get("question")
+                groups.setdefault(key, {"label": f.get("question") or f.get("name"), "ok": False})
+                groups[key]["ok"] = groups[key]["ok"] or f.get("has_value")
+            elif not f.get("has_value"):
+                missing.append(f.get("question") or f.get("label") or f.get("name") or f"field {f.get('kk')}")
+        missing += [g["label"] for g in groups.values() if not g["ok"]]
+        return [m[:80] for m in missing]
 
     async def _detect_captcha(self, page: Page) -> Tuple[bool, str]:
         """Detect presence of CAPTCHA or bot verification gates."""
@@ -419,163 +345,6 @@ class BrowserAutomationAgent:
             pass
 
         return False, ""
-
-    async def _fill_form_fields(
-        self,
-        page: Page,
-        draft_data: Dict[str, Any],
-        resume_file_path: Optional[str],
-        log: Any
-    ) -> Dict[str, int]:
-        """
-        Fill standard ATS form fields using verified profile information,
-        tailored cover letter, and resume file upload.
-        """
-        form_values = draft_data.get("form_field_values") or {}
-        custom_answers = draft_data.get("custom_answers") or {}
-        cover_letter = draft_data.get("cover_letter") or ""
-
-        filled_count = 0
-
-        # Mapping heuristics: (field_key, list_of_selectors)
-        field_rules = [
-            ("first_name", ["input[name*='first' i]", "input[id*='first' i]", "input[autocomplete='given-name']", "input[placeholder*='first name' i]"]),
-            ("last_name", ["input[name*='last' i]", "input[id*='last' i]", "input[autocomplete='family-name']", "input[placeholder*='last name' i]"]),
-            ("full_name", ["input[name*='fullname' i]", "input[name='name' i]", "input[id*='fullname' i]", "input[id='name' i]", "input[autocomplete='name']", "input[placeholder*='full name' i]"]),
-            ("email", ["input[type='email']", "input[name*='email' i]", "input[id*='email' i]", "input[autocomplete='email']", "input[placeholder*='email' i]"]),
-            ("phone", ["input[type='tel']", "input[name*='phone' i]", "input[id*='phone' i]", "input[autocomplete='tel']", "input[placeholder*='phone' i]"]),
-            ("location", ["input[name*='city' i]", "input[name*='location' i]", "input[id*='location' i]", "input[placeholder*='location' i]", "input[placeholder*='city' i]"]),
-            ("linkedin_url", ["input[name*='linkedin' i]", "input[id*='linkedin' i]", "input[placeholder*='linkedin' i]"]),
-            ("github_url", ["input[name*='github' i]", "input[id*='github' i]", "input[placeholder*='github' i]"]),
-            ("portfolio_url", ["input[name*='portfolio' i]", "input[name*='website' i]", "input[id*='portfolio' i]", "input[placeholder*='portfolio' i]"]),
-            ("university", ["input[name*='university' i]", "input[name*='college' i]", "input[name*='school' i]", "input[id*='university' i]", "input[placeholder*='university' i]"]),
-            ("degree", ["input[name*='degree' i]", "input[id*='degree' i]", "input[placeholder*='degree' i]"]),
-            ("major", ["input[name*='major' i]", "input[name*='discipline' i]", "input[id*='major' i]"]),
-            ("graduation_year", ["input[name*='grad' i]", "input[id*='grad' i]", "input[placeholder*='graduation' i]"]),
-            ("cgpa", ["input[name*='gpa' i]", "input[name*='cgpa' i]", "input[id*='cgpa' i]", "input[placeholder*='cgpa' i]"]),
-        ]
-
-        for field_key, selectors in field_rules:
-            val = str(form_values.get(field_key) or "")
-            if not val:
-                continue
-
-            for sel in selectors:
-                try:
-                    loc = page.locator(sel).first
-                    if await loc.count() > 0 and await loc.is_visible():
-                        cur_val = await loc.input_value()
-                        if not cur_val:
-                            await loc.fill(val)
-                            log(f"Filled field '{field_key}'")  # value not logged (personal data)
-                            filled_count += 1
-                            break
-                except Exception:
-                    pass
-
-        # Work authorisation, sponsorship, demographic and legal questions are NEVER answered
-        # automatically. They remain unfilled and are reported for the human to answer.
-
-        # Fill Tailored Cover Letter
-        if cover_letter:
-            cover_selectors = [
-                "textarea[name*='cover' i]",
-                "textarea[id*='cover' i]",
-                "textarea[placeholder*='cover letter' i]",
-                "textarea[name*='letter' i]",
-                "textarea[aria-label*='cover letter' i]",
-                # no generic "first textarea" fallback: that pasted the letter into unrelated questions
-            ]
-            for sel in cover_selectors:
-                try:
-                    loc = page.locator(sel).first
-                    if await loc.count() > 0 and await loc.is_visible():
-                        cur_val = await loc.input_value()
-                        if not cur_val:
-                            await loc.fill(cover_letter)
-                            log("Pasted tailored cover letter into application textarea.")
-                            filled_count += 1
-                            break
-                except Exception:
-                    pass
-
-        # Fill Custom Screening Answers (e.g. why_join, relevant_project, availability, salary)
-        for q_key, ans in custom_answers.items():
-            if not ans or ans == "NEEDS_YOUR_INPUT" or not re.fullmatch(r"[A-Za-z0-9_]+", str(q_key)):
-                continue
-            answer_selectors = [
-                f"textarea[name*='{q_key}' i]",
-                f"input[name*='{q_key}' i]",
-                f"textarea[id*='{q_key}' i]",
-                f"input[id*='{q_key}' i]"
-            ]
-            for sel in answer_selectors:
-                try:
-                    loc = page.locator(sel).first
-                    if await loc.count() > 0 and await loc.is_visible():
-                        cur_val = await loc.input_value()
-                        if not cur_val:
-                            await loc.fill(str(ans))
-                            log(f"Answered screening question '{q_key}'")
-                            filled_count += 1
-                            break
-                except Exception:
-                    pass
-
-        # Upload Resume PDF
-        if resume_file_path and os.path.exists(resume_file_path):
-            try:
-                file_inputs = page.locator("input[type='file']")
-                if await file_inputs.count() > 0:
-                    resume_input = file_inputs.first
-                    await resume_input.set_input_files(resume_file_path)
-                    log(f"Uploaded verified resume: {os.path.basename(resume_file_path)}")
-                    filled_count += 1
-                else:
-                    log("ℹ️ No file upload input found on this page.")
-            except Exception as e:
-                log(f"⚠️ Error uploading resume file: {e}")
-        else:
-            log("ℹ️ No resume file path provided or file does not exist.")
-
-        return {"filled_count": filled_count}
-
-    async def _check_unfilled_required_fields(self, page: Page, log: Any) -> List[str]:
-        """
-        Check for any remaining mandatory fields that are still blank or unchecked.
-        """
-        unfilled = []
-        try:
-            # Find all required inputs
-            required_elements = page.locator("input[required], select[required], textarea[required]")
-            count = await required_elements.count()
-
-            for i in range(count):
-                elem = required_elements.nth(i)
-                if not await elem.is_visible():
-                    continue
-
-                tag_name = await elem.evaluate("el => el.tagName.toLowerCase()")
-                input_type = await elem.get_attribute("type") or "text"
-                name = await elem.get_attribute("name") or await elem.get_attribute("id") or f"field_{i}"
-
-                if input_type in ["checkbox", "radio"]:
-                    is_checked = await elem.is_checked()
-                    if not is_checked:
-                        unfilled.append(f"{name} (required {input_type})")
-                elif tag_name in ["input", "textarea"]:
-                    val = await elem.input_value()
-                    if not val or not val.strip():
-                        unfilled.append(f"{name} (required text)")
-                elif tag_name == "select":
-                    val = await elem.input_value()
-                    if not val or not val.strip():
-                        unfilled.append(f"{name} (required selection)")
-
-        except Exception as e:
-            log(f"⚠️ Error inspecting required fields: {e}")
-
-        return unfilled
 
     async def _find_submit_button(self, page: Page) -> Optional[Any]:
         """Identify submit button using standard ATS patterns."""

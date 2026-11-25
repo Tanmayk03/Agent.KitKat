@@ -306,6 +306,8 @@ class Application(Base):
     confirmation_id = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
     follow_up_date = Column(String(10), nullable=True)  # YYYY-MM-DD
+    # Stage 6: last form map / fill outcome (per field: label, action, result) and the adapter used
+    form_state = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

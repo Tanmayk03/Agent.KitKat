@@ -138,7 +138,9 @@ class DailyScheduler:
         except ValueError:
             hour, minute = 9, 0
         self._scheduled_time = f"{hour:02d}:{minute:02d}"
-        if prefs.get("scheduler_enabled"):
+        if prefs.get("automation_halted"):
+            logger.warning("Automation is halted by Emergency Stop; the daily schedule stays paused until you Resume.")
+        elif prefs.get("scheduler_enabled"):
             self.start(hour, minute)
             logger.info("Restored daily schedule (%s).", self._scheduled_time)
 
@@ -147,6 +149,9 @@ class DailyScheduler:
         """Run one cycle immediately. Raises SchedulerBusyError if a cycle is already running."""
         if self._run_lock.locked():
             raise SchedulerBusyError("A discovery cycle is already running.")
+        from backend.services.halt import ensure_not_halted
+        async with AsyncSessionLocal() as session:
+            await ensure_not_halted(session)
         logger.info("⚡ Immediate on-demand job discovery cycle requested.")
         return await self._run_daily_cycle()
 
@@ -195,6 +200,9 @@ class DailyScheduler:
         """
         if self._run_lock.locked():
             raise SchedulerBusyError("A discovery cycle is already running.")
+        from backend.services.halt import ensure_not_halted
+        async with AsyncSessionLocal() as session:
+            await ensure_not_halted(session)
         await self._run_lock.acquire()  # held until the task finishes
         try:
             async with AsyncSessionLocal() as session:
