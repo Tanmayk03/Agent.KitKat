@@ -424,6 +424,17 @@ class ApplicationService:
         return await ApplicationService.get_tracker_item(session, app.id)
 
     @staticmethod
+    async def follow_ups(session: AsyncSession, due_by: str) -> List[ApplicationTrackerItem]:
+        """Applications with a follow-up date on/before due_by that are still open."""
+        rows = (await session.execute(
+            ApplicationService._tracker_query()
+            .where(Application.follow_up_date.isnot(None), Application.follow_up_date <= due_by,
+                   Application.stage.notin_(["rejected", "withdrawn", "offer_received", "not_eligible"]))
+            .order_by(asc(Application.follow_up_date))
+        )).all()
+        return [ApplicationService._to_item(*r) for r in rows]
+
+    @staticmethod
     async def get_events(session: AsyncSession, app_id: str) -> List[ApplicationEventItem]:
         rows = (await session.execute(
             select(ApplicationEvent).where(ApplicationEvent.application_id == app_id).order_by(asc(ApplicationEvent.created_at))

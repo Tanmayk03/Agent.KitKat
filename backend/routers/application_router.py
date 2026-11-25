@@ -176,6 +176,15 @@ async def search_applications(
     return await application_service.search_applications(session, stage=stage, q=q, sort=sort, page=page, page_size=page_size)
 
 
+@router.get("/follow-ups", response_model=List[ApplicationTrackerItem], summary="Open applications with a follow-up due")
+async def follow_ups_due(
+    due_by: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Default: today in your timezone"),
+    session: AsyncSession = Depends(get_db),
+):
+    from backend.services.reporting_service import today_local
+    return await application_service.follow_ups(session, due_by or today_local().isoformat())
+
+
 @router.post("/shortlist/{job_id}", response_model=ApplicationTrackerItem, summary="Start tracking a job")
 async def shortlist_job(job_id: str, session: AsyncSession = Depends(get_db)):
     try:

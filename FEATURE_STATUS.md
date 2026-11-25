@@ -2,7 +2,7 @@
 
 Legend: ✅ Working (demonstrated) · 🟡 Partial · 🧩 UI/placeholder only · ❌ Broken · ⬜ Missing · ⛔ Blocked (could not be verified in the audit environment)
 
-Last updated: 2026-11-25, after Stage 6 (browser automation). Rows changed in Stages 3–6 are marked (S3)…(S6). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
+Last updated: 2026-11-26, after Stage 7 (scheduler and reporting). Rows changed in Stages 3–7 are marked (S3)…(S7). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
 
 | Area | Feature | Before (audit) | After Stage 2 | Evidence / remaining gap |
 |---|---|---|---|---|
@@ -57,11 +57,15 @@ Last updated: 2026-11-25, after Stage 6 (browser automation). Rows changed in St
 | Tracker | 14-stage lifecycle, enforced transitions, event history (S5) | ⬜ | ✅ | Tests |
 | Tracker | Filters, search, sort, pagination, notes, confirmation ID, follow-up date (S5) | ⬜ | ✅ | Tests plus browser check |
 | Tracker | Shortlist from Opportunities; one application per job (S5) | ⬜ | ✅ | Tests |
-| Scheduler | Persisted, starts at boot, overlap-safe | ❌ | ✅ | Tests; interval scheduling is Stage 7 |
-| Reports | Per-day accurate numbers | ❌ (cumulative) | ❌ | Stage 7 |
+| Scheduler | Persisted, starts at boot, overlap-safe | ❌ | ✅ | Tests |
+| Scheduler | Daily (your timezone) or every 3/4/6/8/12/24 h; restored at boot and after Resume; refuses to start while halted (S7) | ⬜ | ✅ | Tests plus browser check |
+| Scheduler | Run history (last 10) and 7-day failure count in Settings and Dashboard (S7) | ⬜ | ✅ | Tests plus browser check |
+| Reports | Per-day accurate numbers, local-day window (Asia/Kolkata default, `TIMEZONE` setting) (S7) | ❌ (cumulative) | ✅ | Tests (boundary jobs either side of local midnight) |
+| Reports | GET read-only, POST saves snapshot; history; date picker (S7) | ❌ (GET wrote rows) | ✅ | Tests plus browser check |
+| Reports | Follow-ups due (endpoint, Dashboard card, report section) (S7) | ⬜ | ✅ | Tests plus browser check |
 | Frontend | Real data, no mocks | ✅ | ✅ | |
 | Frontend | Opportunities with score and eligibility, pagination, toasts | ⬜ | ⬜ | Stage 8 |
 | PWA | iPhone install over LAN | 🟡 | 🟡 | Service workers need HTTPS on a LAN IP; Stage 8 |
 | AI | Ollama health and generation | ⛔ | ⛔ | Ollama not available in the audit sandbox |
 
-**Completion estimate:** about 38% at audit → 47% (Stage 2) → 54% (Stage 3) → 61% (Stage 4) → 68% (Stage 5) → **about 74% after Stage 6** (browser automation 30→80%; live ATS sites still unverified). Weighted over 18 feature areas totalling 120 points; see AUDIT_REPORT.md §7.
+**Completion estimate:** about 38% at audit → 47% (Stage 2) → 54% (Stage 3) → 61% (Stage 4) → 68% (Stage 5) → 74% (Stage 6) → **about 79% after Stage 7** (scheduler 60→95%, reports 20→90%; live sources and Ollama still unverified). Weighted over 18 feature areas totalling 120 points; see AUDIT_REPORT.md §7.

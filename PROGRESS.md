@@ -410,3 +410,40 @@
 * The ATS pages in the tests are **reconstructions** of Greenhouse/Lever/Ashby markup. Real sites change their HTML and may render with JavaScript widgets (custom dropdowns, multi-step forms) that are reported as "you answer" rather than filled. **Run a Preview on a real posting before relying on Fill.**
 * Custom (non-`<select>`) dropdown widgets and multi-page forms are not automated.
 * Cover letters are pasted as text only; cover-letter *file* uploads are left to you.
+
+---
+
+## Stage 7: Scheduler and reporting (2026-11-26)
+
+**Changed**
+* **Per-day reports** (`backend/services/reporting_service.py`, rewritten). A report covers one *local* calendar day: midnight to midnight in `TIMEZONE` (new setting, default `Asia/Kolkata`), converted to the UTC times the DB stores. Previously every number was cumulative.
+  * Activity that day: discovery runs (scheduled / failed), listings fetched, new jobs stored, listings marked expired, jobs evaluated, PASS / FAIL / UNKNOWN, eligible above your match threshold, shortlisted by you, drafts prepared, approvals decided, submitted, responses (assessment / interview / offer / rejection), source errors.
+  * Snapshot now: pending approvals, applications by stage, follow-ups due.
+  * Lists: best new eligible jobs (top 5 by score), follow-ups due, source errors with messages.
+  * An empty day reports zeros; nothing is estimated.
+* `GET /api/reports/daily?target_date=` is **read-only** (it used to write a row on every call). `POST /api/reports/daily/generate` saves or updates that day's snapshot; the scheduler saves one after each run.
+* **Follow-ups:** `GET /api/applications/follow-ups?due_by=` lists open applications whose follow-up date has arrived. Closed stages (rejected, withdrawn, offer, not eligible) are excluded.
+* **Scheduler modes** (`backend/scheduler/daily_scheduler.py`):
+  * Daily at a time in your timezone, or every 3 / 4 / 6 / 8 / 12 / 24 hours.
+  * Mode and interval are saved in your preferences and restored at startup and after Resume.
+  * Start is refused with 423 while Emergency Stop is active; invalid intervals get 422.
+  * Next run is shown with its timezone (e.g. `2026-11-26 09:00 IST`); the scheduler itself now runs in `TIMEZONE` rather than the machine's zone.
+* `GET /api/scheduler/status` adds mode, description, timezone, the last 10 discovery runs (trigger, status, fetched, new, source errors, error) and failures in the last 7 days.
+* **UI:**
+  * **Daily reports** page rebuilt: date picker, headline numbers, full activity table, best new jobs, follow-ups, source errors, applications by stage, Save snapshot, saved-snapshot history.
+  * **Dashboard:** cards now say "today" and show today's numbers (the old "Total discovered" was actually cumulative listings fetched); follow-ups-due card; schedule card shows mode, next run and recent failures. Fixed "21:00 AM"-style time display.
+  * **Settings:** schedule mode and interval selectors, Apply changes, next run, last run status, recent-runs table.
+
+**Test results (executed 2026-11-26)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–7, 140 tests) | **PASS** 140/140; 11 new in `tests/test_stage7_reporting.py` (local-midnight boundaries, read-only GET, upsert, follow-ups, both scheduler modes, persistence/restore, halt, run history) |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| Frontend build | **PASS** |
+| Browser check (Chromium, seeded temp DB) | Dashboard, Daily reports (save snapshot), Settings (switch to every 6 h → "Every 6 hours", run table with partial/failed rows); no page errors |
+
+**Remaining limitations**
+* On phones, Daily reports and Settings are not in the bottom navigation bar (Stage 8).
+* No push/e-mail notifications; follow-ups are shown in the app only.
+* Reports count stage changes from the application history; changes made before Stage 5 have no history and are not counted per day.
+

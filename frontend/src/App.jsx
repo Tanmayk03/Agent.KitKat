@@ -193,7 +193,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'reports' && <DailyReportsPage />}
+        {activeTab === 'reports' && <DailyReportsPage onNavigateTab={setActiveTab} />}
 
         {activeTab === 'settings' && (
           <SettingsPage

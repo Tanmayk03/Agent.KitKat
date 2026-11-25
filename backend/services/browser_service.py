@@ -192,11 +192,7 @@ class BrowserService:
         from backend.services.profile_service import ProfileService
         prefs = (await ProfileService.get_or_create_profile(db)).application_preferences or {}
         if prefs.get("scheduler_enabled"):
-            try:
-                hour, minute = (int(x) for x in str(prefs.get("daily_search_time") or "09:00").split(":", 1))
-            except ValueError:
-                hour, minute = 9, 0
-            daily_scheduler.start(hour, minute)
+            daily_scheduler.start_from_prefs(prefs)
         logger.info("Automation resumed.")
         return await BrowserService.get_status(db)
 

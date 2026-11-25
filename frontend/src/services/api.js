@@ -341,8 +341,9 @@ export const api = {
     return handleResponse(res);
   },
 
-  async startScheduler(hour = 9, minute = 0) {
-    const res = await fetch(`${BASE_URL}/api/scheduler/start?hour=${hour}&minute=${minute}`, {
+  async startScheduler(hour = 9, minute = 0, mode = 'daily', intervalHours = 6) {
+    const q = new URLSearchParams({ hour, minute, mode, interval_hours: intervalHours });
+    const res = await fetch(`${BASE_URL}/api/scheduler/start?${q}`, {
       method: 'POST',
     });
     return handleResponse(res);
@@ -365,6 +366,20 @@ export const api = {
   // Daily Reports
   async getDailyReport(targetDate = null) {
     const url = targetDate ? `${BASE_URL}/api/reports/daily?target_date=${targetDate}` : `${BASE_URL}/api/reports/daily`;
+    const res = await fetch(url);
+    return handleResponse(res);
+  },
+
+  async generateDailyReport(targetDate = null) {
+    const url = targetDate
+      ? `${BASE_URL}/api/reports/daily/generate?target_date=${targetDate}`
+      : `${BASE_URL}/api/reports/daily/generate`;
+    const res = await fetch(url, { method: 'POST' });
+    return handleResponse(res);
+  },
+
+  async getFollowUps(dueBy = null) {
+    const url = dueBy ? `${BASE_URL}/api/applications/follow-ups?due_by=${dueBy}` : `${BASE_URL}/api/applications/follow-ups`;
     const res = await fetch(url);
     return handleResponse(res);
   },

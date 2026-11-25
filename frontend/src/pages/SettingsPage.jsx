@@ -55,17 +55,35 @@ export default function SettingsPage({
     }
   };
 
+  const startWithPrefs = async () => {
+    const [h, m] = (prefs.daily_search_time || '09:00').split(':').map((v) => parseInt(v, 10));
+    await api.startScheduler(
+      Number.isFinite(h) ? h : 9,
+      Number.isFinite(m) ? m : 0,
+      prefs.schedule_mode || 'daily',
+      prefs.interval_hours || 6,
+    );
+  };
+
   const toggleScheduler = async () => {
     try {
       if (schedulerStatus?.is_running) {
         await api.stopScheduler();
       } else {
-        const [h, m] = (prefs.daily_search_time || '09:00').split(':').map((v) => parseInt(v, 10));
-        await api.startScheduler(h || 9, m || 0);
+        await startWithPrefs();
       }
       onSchedulerToggled();
     } catch (err) {
       alert(`Scheduler action failed: ${err.message}`);
+    }
+  };
+
+  const applySchedule = async () => {
+    try {
+      await startWithPrefs();
+      onSchedulerToggled();
+    } catch (err) {
+      alert(`Could not apply schedule: ${err.message}`);
     }
   };
 
@@ -177,21 +195,48 @@ export default function SettingsPage({
       <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-4">
         <h2 className="text-sm font-semibold text-zinc-100 flex items-center space-x-2">
           <Clock className="w-4 h-4 text-zinc-400" />
-          <span>Daily Autonomous Scheduler (Mode A)</span>
+          <span>Discovery schedule</span>
         </h2>
+        <p className="text-xs text-zinc-400">
+          Each run searches your sources, evaluates new jobs and saves that day's report. It never submits anything.
+          {schedulerStatus?.timezone ? ` Times are in ${schedulerStatus.timezone}.` : ''}
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-              Daily Search Time (24h format)
-            </label>
-            <input
-              type="time"
-              value={prefs.daily_search_time || '09:00'}
-              onChange={(e) => setPrefs({ ...prefs, daily_search_time: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 focus:outline-none focus:border-zinc-600 font-mono"
-            />
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">Run</label>
+            <select
+              value={prefs.schedule_mode || 'daily'}
+              onChange={(e) => setPrefs({ ...prefs, schedule_mode: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100"
+            >
+              <option value="daily">Once a day</option>
+              <option value="interval">Every few hours</option>
+            </select>
           </div>
+
+          {(prefs.schedule_mode || 'daily') === 'daily' ? (
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Time of day (24h)</label>
+              <input
+                type="time"
+                value={prefs.daily_search_time || '09:00'}
+                onChange={(e) => setPrefs({ ...prefs, daily_search_time: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 focus:outline-none focus:border-zinc-600 font-mono"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Every</label>
+              <select
+                value={prefs.interval_hours || 6}
+                onChange={(e) => setPrefs({ ...prefs, interval_hours: parseInt(e.target.value, 10) })}
+                className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100"
+              >
+                {[3, 4, 6, 8, 12, 24].map((h) => <option key={h} value={h}>{h} hours</option>)}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-zinc-300 mb-1.5">
@@ -212,7 +257,7 @@ export default function SettingsPage({
           <div className="sm:col-span-2">
             <div className="flex justify-between items-center mb-1.5">
               <label className="text-xs font-medium text-zinc-300">
-                Minimum Match Score for Auto-Shortlist: {prefs.min_match_score || 75}%
+                Match score to highlight in reports: {prefs.min_match_score || 75}%
               </label>
             </div>
             <input
@@ -230,15 +275,28 @@ export default function SettingsPage({
         {/* Scheduler Toggle Bar */}
         <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
           <div className="text-xs">
-            <span className="text-zinc-500 block">Scheduler Runner State</span>
+            <span className="text-zinc-500 block">Schedule</span>
             <span
               className={`font-mono font-medium ${
                 schedulerStatus?.is_running ? 'text-emerald-400' : 'text-zinc-500'
               }`}
             >
-              {schedulerStatus?.is_running ? 'Running (Active)' : 'Stopped (Standby)'}
+              {schedulerStatus?.is_running ? schedulerStatus.description || 'On' : 'Paused'}
             </span>
+            {schedulerStatus?.is_running && schedulerStatus?.next_run_time && (
+              <span className="text-zinc-500 block mt-0.5">Next run: <span className="font-mono text-zinc-300">{schedulerStatus.next_run_time}</span></span>
+            )}
           </div>
+
+          {schedulerStatus?.is_running && (
+            <button
+              onClick={applySchedule}
+              className="ml-auto mr-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-700 text-zinc-200 hover:bg-zinc-800"
+              title="Re-apply the mode/time above to the running schedule"
+            >
+              Apply changes
+            </button>
+          )}
 
           <button
             onClick={toggleScheduler}
@@ -249,9 +307,47 @@ export default function SettingsPage({
             }`}
           >
             {schedulerStatus?.is_running ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            <span>{schedulerStatus?.is_running ? 'Pause Scheduler' : 'Activate Scheduler'}</span>
+            <span>{schedulerStatus?.is_running ? 'Pause schedule' : 'Turn on schedule'}</span>
           </button>
         </div>
+
+        {schedulerStatus?.last_run_status && (
+          <p className={`text-xs ${schedulerStatus.last_run_status === 'failed' ? 'text-red-400' : 'text-zinc-400'}`}>
+            Last scheduled run: {schedulerStatus.last_run_status}
+            {schedulerStatus.last_run_finished_at ? ` at ${schedulerStatus.last_run_finished_at} UTC` : ''}
+            {schedulerStatus.last_run_error ? ` — ${schedulerStatus.last_run_error}` : ''}
+          </p>
+        )}
+
+        {(schedulerStatus?.recent_runs || []).length > 0 && (
+          <div className="pt-2">
+            <div className="flex justify-between text-xs mb-1.5">
+              <span className="text-zinc-300 font-medium">Recent discovery runs</span>
+              {schedulerStatus.failed_runs_7d > 0 && (
+                <span className="text-red-400">{schedulerStatus.failed_runs_7d} failed in the last 7 days</span>
+              )}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px] font-mono">
+                <thead className="text-zinc-500 text-left">
+                  <tr><th className="py-1 pr-3 font-normal">Started (UTC)</th><th className="pr-3 font-normal">Trigger</th><th className="pr-3 font-normal">Status</th><th className="pr-3 font-normal">Fetched</th><th className="pr-3 font-normal">New</th><th className="font-normal">Source errors</th></tr>
+                </thead>
+                <tbody className="text-zinc-300">
+                  {schedulerStatus.recent_runs.map((r) => (
+                    <tr key={r.id} className="border-t border-zinc-800/70" title={r.error || ''}>
+                      <td className="py-1 pr-3">{r.started_at}</td>
+                      <td className="pr-3">{r.trigger}</td>
+                      <td className={`pr-3 ${r.status === 'failed' || r.status === 'interrupted' ? 'text-red-400' : r.status === 'partial' ? 'text-amber-300' : 'text-emerald-400'}`}>{r.status}</td>
+                      <td className="pr-3">{r.fetched ?? 0}</td>
+                      <td className="pr-3">{r.new_jobs ?? 0}</td>
+                      <td>{r.failed_sources ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* iPhone PWA & Remote Network Access Card */}

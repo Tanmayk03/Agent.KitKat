@@ -47,7 +47,7 @@ Ordered by risk first, then value. Every stage ends with: tests run and results 
 * Sensitive question classifier (demographics, legal, background-check) → always manual.
 * Global "halt" flag from emergency stop that also pauses the scheduler until reset.
 
-## Stage 7: Scheduler and reporting
+## Stage 7: Scheduler and reporting ✅
 * Interval or cron options; run history table; failure log; daily summary generation.
 * Reports computed per day (jobs created that day, evaluations that day, applications by status-change date). GET is read-only; POST generates.
 

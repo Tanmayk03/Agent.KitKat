@@ -3,7 +3,7 @@ Agent KitKat - Discovery and Scheduler Schemas
 Pydantic schemas for job discovery triggers, duplicate checking, and scheduling.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -91,6 +91,12 @@ class SchedulerStatusResponse(BaseModel):
     last_run_finished_at: Optional[str] = None
     last_run_status: Optional[str] = None
     last_run_error: Optional[str] = None
+    mode: str = "daily"
+    interval_hours: int = 6
+    description: str = ""
+    timezone: str = ""
+    recent_runs: List[Dict[str, Any]] = Field(default_factory=list)
+    failed_runs_7d: int = 0
 
 
 class CareerBoardItem(BaseModel):
