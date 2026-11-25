@@ -1,317 +1,371 @@
-import React, { useState, useEffect } from 'react';
-import {
-  ExternalLink,
-  Play,
-  CheckCircle2,
-  AlertTriangle,
-  Lock,
-  HelpCircle,
-  Eye,
-  X,
-  ShieldAlert,
-} from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Search, X, Eye, ExternalLink, Clock } from 'lucide-react';
 import { api } from '../services/api';
 
-export default function TrackerPage() {
-  const [trackedApps, setTrackedApps] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [activeScreenshotModal, setActiveScreenshotModal] = useState(null);
-  const [runningDraftId, setRunningDraftId] = useState(null);
+const STAGE_STYLE = {
+  discovered: 'text-zinc-400 border-zinc-700',
+  shortlisted: 'text-zinc-200 border-zinc-600',
+  eligible: 'text-emerald-300 border-emerald-800/50',
+  not_eligible: 'text-red-300 border-red-900/50',
+  draft_ready: 'text-sky-300 border-sky-900/50',
+  awaiting_approval: 'text-amber-300 border-amber-800/50',
+  submitted: 'text-emerald-300 border-emerald-800/50',
+  submission_unverified: 'text-amber-300 border-amber-800/50',
+  application_confirmed: 'text-emerald-300 border-emerald-700',
+  assessment_received: 'text-violet-300 border-violet-900/50',
+  interview: 'text-violet-200 border-violet-700',
+  rejected: 'text-red-300 border-red-900/50',
+  withdrawn: 'text-zinc-500 border-zinc-800',
+  offer_received: 'text-emerald-200 border-emerald-600',
+};
+const AUTOMATION_NOTE = {
+  filling: 'Filling form…',
+  filled_ready_for_review: 'Form filled: review the screenshot',
+  paused_captcha: 'Paused: CAPTCHA (finish manually)',
+  paused_login: 'Paused: login required',
+  paused_unknown_field: 'Paused: questions need your answer',
+  halted_emergency: 'Stopped by emergency stop',
+  failed: 'Automation failed',
+};
+const SORTS = [
+  ['updated', 'Recently updated'],
+  ['applied', 'Application date'],
+  ['follow_up', 'Follow-up date'],
+  ['score', 'Match score'],
+  ['company', 'Company'],
+];
+const PAGE_SIZE = 20;
 
-  const fetchTracker = async () => {
+function StageBadge({ stage, label }) {
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium border bg-zinc-900 ${STAGE_STYLE[stage] || STAGE_STYLE.discovered}`}>
+      {label}
+    </span>
+  );
+}
+
+function fmtDate(v) {
+  if (!v) return '—';
+  const d = new Date(v.endsWith?.('Z') || v.includes?.('+') ? v : `${v}Z`);
+  return isNaN(d) ? v : d.toLocaleDateString();
+}
+
+export default function TrackerPage() {
+  const [stages, setStages] = useState({});
+  const [data, setData] = useState({ items: [], total: 0, stage_counts: {} });
+  const [stageFilter, setStageFilter] = useState('');
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState('updated');
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [form, setForm] = useState({});
+  const [runningDraftId, setRunningDraftId] = useState(null);
+  const [screenshot, setScreenshot] = useState(null);
+
+  const load = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.getTracker();
-      setTrackedApps(data);
+      setError(null);
+      setData(await api.getApplications({ stage: stageFilter, q, sort, page, page_size: PAGE_SIZE }));
     } catch (err) {
-      console.error('Failed to load application tracker:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [stageFilter, q, sort, page]);
 
   useEffect(() => {
-    fetchTracker();
+    api.getStages().then((s) => setStages(s.stages)).catch(() => {});
   }, []);
 
-  const handleRunBrowser = async (draftId, autoSubmit = false) => {
-    if (autoSubmit) {
+  useEffect(() => {
+    const t = setTimeout(load, q ? 300 : 0); // debounce search typing
+    return () => clearTimeout(t);
+  }, [load, q]);
+
+  const open = async (app) => {
+    setSelected(app);
+    setForm({ stage: '', note: '', notes: app.notes || '', confirmation_id: app.confirmation_id || '', follow_up_date: app.follow_up_date || '' });
+    try {
+      setEvents(await api.getApplicationEvents(app.id));
+    } catch {
+      setEvents([]);
+    }
+  };
+
+  const saveDetails = async () => {
+    try {
+      setError(null);
+      const patch = {
+        notes: form.notes,
+        confirmation_id: form.confirmation_id,
+        follow_up_date: form.follow_up_date,
+      };
+      if (form.stage) patch.stage = form.stage;
+      if (form.note) patch.note = form.note;
+      const updated = await api.updateApplication(selected.id, patch);
+      await load();
+      await open(updated);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const runBrowser = async (app, submit) => {
+    if (submit) {
       const ok = window.confirm(
-        'Submit this application now?\n\nAgent KitKat will fill the form again and click Submit. ' +
-        'Only continue if you reviewed the pre-submit screenshot and every answer is correct.'
+        `Submit the application to ${app.company} now?\n\nAgent KitKat will fill the form again and click Submit. ` +
+          'Only continue if you reviewed the pre-submit screenshot and every answer is correct.'
       );
       if (!ok) return;
     }
     try {
-      setRunningDraftId(draftId);
-      const result = await api.runBrowserAutomation(draftId, autoSubmit, autoSubmit);
-      if (result?.intervention_reason) {
-        alert(`${result.status}: ${result.intervention_reason}`);
-      }
-      await fetchTracker();
+      setRunningDraftId(app.draft_id);
+      const result = await api.runBrowserAutomation(app.draft_id, submit, submit);
+      if (result?.intervention_reason) alert(`${result.status}: ${result.intervention_reason}`);
+      await load();
     } catch (err) {
-      alert(`Browser automation error: ${err.message}`);
+      alert(`Browser automation: ${err.message}`);
     } finally {
       setRunningDraftId(null);
     }
   };
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'submitted':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950/40 text-emerald-400 border border-emerald-800/40">
-            <CheckCircle2 className="w-3 h-3" />
-            <span>Submitted</span>
-          </span>
-        );
-      case 'paused_captcha':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-red-950/40 text-red-400 border border-red-800/40">
-            <AlertTriangle className="w-3 h-3" />
-            <span>Paused (CAPTCHA)</span>
-          </span>
-        );
-      case 'paused_login':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700/60">
-            <Lock className="w-3 h-3" />
-            <span>Paused (Login Wall)</span>
-          </span>
-        );
-      case 'paused_unknown_field':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700/60">
-            <HelpCircle className="w-3 h-3" />
-            <span>Paused (Declaration Needed)</span>
-          </span>
-        );
-      case 'halted_emergency':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-red-950/40 text-red-300 border border-red-800/50">
-            <ShieldAlert className="w-3 h-3" />
-            <span>Emergency Stopped</span>
-          </span>
-        );
-      case 'filling':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-200 border border-zinc-700/60">
-            <Play className="w-3 h-3 animate-pulse" />
-            <span>Filling in Browser...</span>
-          </span>
-        );
-      case 'approved':
-      case 'approved_for_submission':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-200 border border-zinc-700/50">
-            <span>Approved – not sent</span>
-          </span>
-        );
-      case 'filled_ready_for_review':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-amber-300 border border-amber-800/40">
-            <span>Filled – review screenshot</span>
-          </span>
-        );
-      case 'submission_unverified':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-950/40 text-amber-300 border border-amber-800/40">
-            <span>Submitted – unverified</span>
-          </span>
-        );
-      case 'withdrawn':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-500 border border-zinc-700/50">
-            <span>Rejected by you</span>
-          </span>
-        );
-      case 'draft_ready':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700/50">
-            <span>Draft ready</span>
-          </span>
-        );
-      case 'awaiting_approval':
-      case 'pending_approval':
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700/50">
-            <span>Pending Review</span>
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700/50">
-            <span>{status || 'Draft'}</span>
-          </span>
-        );
-    }
-  };
+  const sent = (app) => ['submitted', 'submission_unverified', 'application_confirmed', 'assessment_received', 'interview', 'rejected', 'offer_received'].includes(app.stage);
+  const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
+  const allCount = Object.values(data.stage_counts || {}).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-5">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 tracking-tight">
-          Application Tracker ({trackedApps.length})
-        </h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 tracking-tight">Application Tracker</h1>
         <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-          Real-time status of every application prepared, filled, submitted, or paused by Agent KitKat.
+          Every job you shortlisted or prepared, from shortlist to offer. Changing a stage is recorded in its history.
         </p>
       </div>
 
-      {loading ? (
-        <div className="py-16 text-center text-zinc-500 text-xs sm:text-sm">Loading applications...</div>
-      ) : trackedApps.length === 0 ? (
-        <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-8 sm:p-12 text-center text-zinc-500 text-xs sm:text-sm">
-          No applications tracked yet. Prepare an application from Discovered Opportunities or Analyze a Job URL.
+      {/* Stage filter chips */}
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => { setStageFilter(''); setPage(1); }}
+          className={`px-2.5 py-1 rounded-md text-xs border ${!stageFilter ? 'bg-zinc-100 text-zinc-950 border-zinc-100' : 'text-zinc-300 border-zinc-800 hover:bg-zinc-900'}`}
+        >
+          All ({allCount})
+        </button>
+        {Object.entries(stages).map(([key, label]) =>
+          data.stage_counts?.[key] ? (
+            <button
+              key={key}
+              onClick={() => { setStageFilter(key); setPage(1); }}
+              className={`px-2.5 py-1 rounded-md text-xs border ${stageFilter === key ? 'bg-zinc-100 text-zinc-950 border-zinc-100' : 'text-zinc-300 border-zinc-800 hover:bg-zinc-900'}`}
+            >
+              {label} ({data.stage_counts[key]})
+            </button>
+          ) : null
+        )}
+      </div>
+
+      {/* Search + sort */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setPage(1); }}
+            placeholder="Search company, role, notes, confirmation ID"
+            aria-label="Search applications"
+            className="w-full pl-8 pr-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500"
+          />
+        </div>
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+          aria-label="Sort"
+          className="px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-100"
+        >
+          {SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </div>
+
+      {error && <p className="text-xs text-red-300" role="alert">{error}</p>}
+
+      {loading && data.items.length === 0 ? (
+        <div className="py-16 text-center text-zinc-500 text-xs">Loading applications…</div>
+      ) : data.items.length === 0 ? (
+        <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-10 text-center text-zinc-500 text-xs">
+          {q || stageFilter ? 'No applications match these filters.' : 'Nothing tracked yet. Shortlist or prepare a job from Opportunities.'}
         </div>
       ) : (
-        <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[640px]">
-              <thead className="bg-zinc-950 text-zinc-500 uppercase font-mono text-[10px] tracking-wider border-b border-zinc-800">
-                <tr>
-                  <th className="py-3 px-4 font-medium">Opportunity</th>
-                  <th className="py-3 px-4 font-medium">Status</th>
-                  <th className="py-3 px-4 font-medium">Match Score</th>
-                  <th className="py-3 px-4 font-medium">Method / Result</th>
-                  <th className="py-3 px-4 font-medium">Screenshots</th>
-                  <th className="py-3 px-4 font-medium text-right">Actions</th>
+        <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                <th className="py-2.5 px-4 font-medium">Opportunity</th>
+                <th className="py-2.5 px-3 font-medium">Stage</th>
+                <th className="py-2.5 px-3 font-medium text-right">Match</th>
+                <th className="py-2.5 px-3 font-medium">Applied</th>
+                <th className="py-2.5 px-3 font-medium">Follow-up</th>
+                <th className="py-2.5 px-4 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/60">
+              {data.items.map((app) => (
+                <tr key={app.id} className="align-top hover:bg-zinc-900/60">
+                  <td className="py-2.5 px-4">
+                    <button onClick={() => open(app)} className="text-left">
+                      <span className="text-zinc-100 font-medium hover:underline">{app.job_title}</span>
+                      <span className="block text-zinc-400">{app.company_name} · {app.location || 'location not stated'}</span>
+                    </button>
+                    {AUTOMATION_NOTE[app.status] && <span className="block text-[10px] text-amber-300/80 mt-0.5">{AUTOMATION_NOTE[app.status]}</span>}
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <StageBadge stage={app.stage} label={app.stage_label} />
+                    {app.approval_status === 'approved' && !sent(app) && <span className="block text-[10px] text-emerald-300/80 mt-0.5">Approved · not sent</span>}
+                  </td>
+                  <td className="py-2.5 px-3 text-right text-zinc-300 font-mono">{app.match_score != null ? `${app.match_score}%` : '—'}</td>
+                  <td className="py-2.5 px-3 text-zinc-400 whitespace-nowrap">{fmtDate(app.applied_at)}</td>
+                  <td className="py-2.5 px-3 text-zinc-400 whitespace-nowrap">{app.follow_up_date || '—'}</td>
+                  <td className="py-2.5 px-4 text-right">
+                    <div className="flex justify-end gap-1.5 flex-wrap">
+                      {app.draft_id && !sent(app) && app.stage !== 'withdrawn' && (
+                        <button
+                          onClick={() => runBrowser(app, false)}
+                          disabled={runningDraftId === app.draft_id}
+                          title="Fill the form and save a screenshot. Never clicks Submit."
+                          className="px-2 py-1 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 disabled:opacity-50"
+                        >
+                          {runningDraftId === app.draft_id ? 'Running…' : 'Fill (no submit)'}
+                        </button>
+                      )}
+                      {app.draft_id && app.approval_status === 'approved' && !sent(app) && (
+                        <button
+                          onClick={() => runBrowser(app, true)}
+                          disabled={runningDraftId === app.draft_id}
+                          className="px-2 py-1 rounded-md bg-amber-700 hover:bg-amber-600 text-white border border-amber-600 disabled:opacity-50"
+                        >
+                          Submit…
+                        </button>
+                      )}
+                      <button onClick={() => open(app)} className="px-2 py-1 rounded-md text-zinc-300 hover:bg-zinc-800">Details</button>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/60">
-                {trackedApps.map((app) => (
-                  <tr key={app.application_id} className="hover:bg-zinc-850/30 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="font-medium text-zinc-100 text-xs sm:text-sm">{app.job_title}</div>
-                      <div className="text-zinc-400 text-xs flex items-center space-x-1.5 mt-0.5">
-                        <span>{app.company_name}</span>
-                        {app.job_url && (
-                          <a
-                            href={app.job_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-zinc-400 hover:text-zinc-200"
-                          >
-                            <ExternalLink className="w-3 h-3 inline" />
-                          </a>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4">{getStatusBadge(app.status)}</td>
-
-                    <td className="py-3.5 px-4">
-                      {app.match_score ? (
-                        <span className="font-mono font-medium text-zinc-200 text-xs">
-                          {app.match_score}%
-                        </span>
-                      ) : (
-                        <span className="text-zinc-500">—</span>
-                      )}
-                    </td>
-
-                    <td className="py-3.5 px-4 max-w-xs">
-                      <div className="text-zinc-300 truncate font-mono text-[11px]">
-                        {app.submission_result || app.failure_reason || app.submission_method}
-                      </div>
-                      <div className="text-[10px] text-zinc-500 mt-0.5">
-                        {app.applied_at
-                          ? `Applied ${new Date(app.applied_at).toLocaleDateString()}`
-                          : `Updated ${new Date(app.updated_at).toLocaleTimeString()}`}
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center space-x-1.5">
-                        {app.draft_id && (
-                          <>
-                            <button
-                              onClick={() =>
-                                setActiveScreenshotModal(`/api/browser/screenshots/${app.draft_id}/pre_submit.png`)
-                              }
-                              className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] flex items-center space-x-1"
-                              title="Pre-submission screenshot"
-                            >
-                              <Eye className="w-3 h-3 text-zinc-400" />
-                              <span>Pre</span>
-                            </button>
-
-                            <button
-                              onClick={() =>
-                                setActiveScreenshotModal(`/api/browser/screenshots/${app.draft_id}/post_submit.png`)
-                              }
-                              className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] flex items-center space-x-1"
-                              title="Post-submission confirmation screenshot"
-                            >
-                              <Eye className="w-3 h-3 text-emerald-400" />
-                              <span>Post</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-right">
-                      {app.draft_id && !['submitted', 'submission_unverified', 'withdrawn'].includes(app.status) && (
-                        <div className="flex justify-end gap-1.5">
-                          <button
-                            onClick={() => handleRunBrowser(app.draft_id, false)}
-                            disabled={runningDraftId === app.draft_id}
-                            title="Fill the form and save a screenshot. Never clicks Submit."
-                            className="px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 transition-colors disabled:opacity-50"
-                          >
-                            {runningDraftId === app.draft_id ? 'Running...' : 'Fill (no submit)'}
-                          </button>
-                          {app.approval_status === 'approved' && (
-                            <button
-                              onClick={() => handleRunBrowser(app.draft_id, true)}
-                              disabled={runningDraftId === app.draft_id}
-                              title="Final step: fill and submit. Requires your confirmation."
-                              className="px-2.5 py-1 rounded-md text-xs font-medium bg-amber-700 hover:bg-amber-600 text-white border border-amber-600 transition-colors disabled:opacity-50"
-                            >
-                              Submit…
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-800 text-xs text-zinc-400">
+            <span>{data.total} application(s)</span>
+            <div className="flex items-center gap-2">
+              <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-40">Prev</button>
+              <span>Page {page} / {totalPages}</span>
+              <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="px-2 py-1 rounded hover:bg-zinc-800 disabled:opacity-40">Next</button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Screenshot Modal Viewer */}
-      {activeScreenshotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm p-4">
-          <div className="relative max-w-4xl w-full bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl">
-            <div className="p-3.5 border-b border-zinc-800 flex items-center justify-between">
-              <span className="text-xs font-mono text-zinc-300 font-medium">
-                Form Verification Screenshot
-              </span>
-              <button
-                onClick={() => setActiveScreenshotModal(null)}
-                className="p-1 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
+      {/* Detail drawer */}
+      {selected && (
+        <div className="fixed inset-0 z-[60] flex justify-end bg-zinc-950/70" role="dialog" aria-modal="true" onClick={() => setSelected(null)}>
+          <div className="w-full max-w-lg h-full overflow-y-auto bg-zinc-900 border-l border-zinc-800 p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-100">{selected.job_title}</h2>
+                <p className="text-xs text-zinc-400">{selected.company_name} · {selected.source}</p>
+                {selected.job_url && (
+                  <a href={selected.job_url} target="_blank" rel="noreferrer" className="text-[11px] text-zinc-400 hover:text-zinc-100 inline-flex items-center gap-1 mt-1">
+                    Open posting <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+              <button onClick={() => setSelected(null)} className="p-1 text-zinc-400 hover:text-zinc-100" aria-label="Close"><X className="w-4 h-4" /></button>
             </div>
-            <div className="p-4 max-h-[80vh] overflow-y-auto bg-zinc-950 flex justify-center">
-              <img
-                src={activeScreenshotModal}
-                alt="Verification Screenshot"
-                className="rounded-lg border border-zinc-800 max-w-full"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.parentNode.innerHTML +=
-                    '<p class="text-xs text-zinc-500 py-8">Screenshot not yet generated for this step.</p>';
-                }}
-              />
+
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div><span className="text-zinc-500 block">Stage</span><StageBadge stage={selected.stage} label={selected.stage_label} /></div>
+              <div><span className="text-zinc-500 block">Eligibility</span><span className="text-zinc-200">{selected.eligibility_status || '—'}</span></div>
+              <div><span className="text-zinc-500 block">Resume used</span><span className="text-zinc-200">{selected.resume_file_name || '—'}</span></div>
+              <div><span className="text-zinc-500 block">Applied</span><span className="text-zinc-200">{fmtDate(selected.applied_at)}</span></div>
+              {selected.submission_result && (
+                <div className="col-span-2"><span className="text-zinc-500 block">Submission evidence</span><span className="text-zinc-300">{selected.submission_result}</span></div>
+              )}
+            </div>
+
+            {(selected.pre_submit_screenshot || selected.post_submit_screenshot) && (
+              <div className="flex gap-2">
+                {selected.pre_submit_screenshot && (
+                  <button onClick={() => setScreenshot(`/api/browser/screenshots/${selected.draft_id}/pre_submit.png`)} className="px-2 py-1 rounded bg-zinc-800 text-zinc-300 text-[11px] flex items-center gap-1">
+                    <Eye className="w-3 h-3" /> Pre-submit
+                  </button>
+                )}
+                {selected.post_submit_screenshot && (
+                  <button onClick={() => setScreenshot(`/api/browser/screenshots/${selected.draft_id}/post_submit.png`)} className="px-2 py-1 rounded bg-zinc-800 text-zinc-300 text-[11px] flex items-center gap-1">
+                    <Eye className="w-3 h-3" /> After submit
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2 text-xs">
+              <label className="block">
+                <span className="text-zinc-400">Move to stage</span>
+                <select
+                  value={form.stage}
+                  onChange={(e) => setForm({ ...form, stage: e.target.value })}
+                  className="mt-1 w-full px-2.5 py-1.5 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-100"
+                >
+                  <option value="">Keep “{selected.stage_label}”</option>
+                  {selected.allowed_next_stages.filter((s) => s !== selected.stage).map((s) => (
+                    <option key={s} value={s}>{stages[s] || s}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-zinc-400">Note for the history (optional)</span>
+                <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="e.g. Applied manually on Naukri" className="mt-1 w-full px-2.5 py-1.5 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-100" />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-zinc-400">Confirmation ID</span>
+                  <input value={form.confirmation_id} onChange={(e) => setForm({ ...form, confirmation_id: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-100" />
+                </label>
+                <label className="block">
+                  <span className="text-zinc-400">Follow-up date</span>
+                  <input type="date" value={form.follow_up_date} onChange={(e) => setForm({ ...form, follow_up_date: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-100" />
+                </label>
+              </div>
+              <label className="block">
+                <span className="text-zinc-400">Notes</span>
+                <textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-100" />
+              </label>
+              <button onClick={saveDetails} className="px-3 py-1.5 rounded-md bg-zinc-100 text-zinc-950 font-medium">Save</button>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-zinc-200 mb-2 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> History</h3>
+              <ol className="space-y-2 border-l border-zinc-800 pl-3">
+                {events.map((e) => (
+                  <li key={e.id} className="text-[11px]">
+                    <span className="text-zinc-500">{new Date(e.created_at.endsWith('Z') ? e.created_at : `${e.created_at}Z`).toLocaleString()} · {e.actor}</span>
+                    <span className="block text-zinc-200">
+                      {e.from_stage !== e.to_stage ? `${stages[e.from_stage] || e.from_stage} → ${stages[e.to_stage] || e.to_stage}` : 'Note'}
+                    </span>
+                    {e.note && <span className="block text-zinc-400">{e.note}</span>}
+                  </li>
+                ))}
+                {events.length === 0 && <li className="text-[11px] text-zinc-500">No history yet.</li>}
+              </ol>
             </div>
           </div>
+        </div>
+      )}
+
+      {screenshot && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-zinc-950/85 p-4" onClick={() => setScreenshot(null)}>
+          <img src={screenshot} alt="Application form screenshot" className="max-h-[90vh] max-w-full rounded-lg border border-zinc-800" />
         </div>
       )}
     </div>

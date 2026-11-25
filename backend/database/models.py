@@ -250,6 +250,10 @@ class ApplicationDraft(Base):
     pre_submit_screenshot = Column(String(500), nullable=True)
     post_submit_screenshot = Column(String(500), nullable=True)
 
+    # Grounding: claims in the letter/answers that could not be traced to your profile or resume
+    grounding_report = Column(JSON, default=list)
+    current_version = Column(Integer, default=1)
+
     status = Column(String(50), default="drafted")  # drafted, pending_approval, approved, rejected, prepared_only, filling, submitted, paused_captcha, paused_login, paused_unknown_field, halted_emergency
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -294,8 +298,45 @@ class Application(Base):
     browser_logs = Column(JSON, default=list)
     applied_at = Column(DateTime, nullable=True)
 
+    # Stage 5: lifecycle (see services/lifecycle.py) - separate from the automation `status` above
+    stage = Column(String(30), default="discovered", index=True)
+    stage_updated_at = Column(DateTime, nullable=True)
+    resume_id = Column(String(36), nullable=True)
+    resume_file_name = Column(String(255), nullable=True)
+    confirmation_id = Column(String(255), nullable=True)
+    notes = Column(Text, nullable=True)
+    follow_up_date = Column(String(10), nullable=True)  # YYYY-MM-DD
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DraftVersion(Base):
+    """Every generated / edited / restored version of an application draft."""
+    __tablename__ = "draft_versions"
+
+    id = Column(String(36), primary_key=True, index=True)
+    draft_id = Column(String(36), ForeignKey("application_drafts.id", ondelete="CASCADE"), nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    source = Column(String(20), default="generated")  # generated, edited, restored
+    cover_letter = Column(Text, default="")
+    custom_answers = Column(JSON, default=dict)
+    form_field_values = Column(JSON, default=dict)
+    grounding_report = Column(JSON, default=list)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ApplicationEvent(Base):
+    """Audit trail of lifecycle changes and notes for an application."""
+    __tablename__ = "application_events"
+
+    id = Column(String(36), primary_key=True, index=True)
+    application_id = Column(String(36), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True)
+    from_stage = Column(String(30), nullable=True)
+    to_stage = Column(String(30), nullable=True)
+    actor = Column(String(20), default="user")  # user, system, browser
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class DailyReport(Base):

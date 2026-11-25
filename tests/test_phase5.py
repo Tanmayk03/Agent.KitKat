@@ -159,6 +159,17 @@ async def run_phase5_tests():
         approval_id = pending_list[0]["id"]
         assert pending_list[0]["company"] == "CloudScale Technologies"
 
+        # Stage 5: approval is refused while placeholders / unverified claims remain -> fill them in first
+        blocked = await client.post(f"/api/applications/approvals/{approval_id}/decide", json={"action": "approve"})
+        assert blocked.status_code == 409
+        fill = await client.put(f"/api/applications/drafts/{pending_list[0]['draft_id']}", json={"custom_answers": {
+            "why_join": "I want to work on CloudScale's backend platform.",
+            "relevant_project": "A FastAPI service I built for a college project.",
+            "availability": "From June 2026",
+            "salary_expectation": "As per company norms",
+        }})
+        assert fill.status_code == 200 and fill.json()["grounding_report"] == [], fill.json()["grounding_report"]
+
         # Approve the application
         decide_payload = {
             "action": "approve",

@@ -331,3 +331,42 @@
 * Resume parsing is regex-based. Unusual layouts (two columns, tables, images) may yield fewer suggestions, but never invented ones.
 * The skill dictionary is fixed (about 55 skills); skills outside it are not recognised in postings or resumes.
 * Experience "1 year" is UNKNOWN (you decide whether internships count); 2+ years is FAIL.
+
+
+## Stage 5: Application preparation and tracking (2026-11-25)
+
+**Changed**
+* **Draft versions:** every generated, edited or restored draft is saved (`draft_versions`). Approvals shows the history and can restore any earlier version; a restore creates a new version. No-op saves do not create versions.
+* **Grounding checker** (`backend/agents/grounding.py`): flags, per sentence, any claim the profile/resume does not back up:
+  * first-person mentions of skills that are not verified;
+  * metrics or counts ("40%", "500+ users", "3 years") not found in the profile, resume or posting;
+  * a CGPA that differs from the profile;
+  * "interned/worked at X" when X is not in the profile/resume;
+  * certification claims when none are listed;
+  * unfilled placeholders.
+  Naming the role or company ("the AI/ML Intern role") is not treated as a claim.
+* **Approval gate:** approval returns 409 while flagged claims exist, unless you tick "I checked every flagged claim" (`acknowledge_unverified_claims`). The acknowledgement is recorded in the history. **Editing an approved draft cancels the approval**, so it needs re-approval.
+* **Approvals page rewritten:** real match and eligibility (the old page showed `match_score || 90` and a hardcoded PASS); flagged claims listed with the sentence; editable screening answers (previously impossible); version history and restore; the approve button reads "Approve & fill form (does not submit)".
+* **14-stage lifecycle** (`backend/services/lifecycle.py`):
+  * Stages: Discovered, Shortlisted, Eligible, Not Eligible, Draft Ready, Awaiting Approval, Submitted, Submission Unverified, Application Confirmed, Assessment Received, Interview, Rejected, Withdrawn, Offer Received.
+  * Allowed transitions are enforced (e.g. Rejected is final), and every change is written to `application_events` with actor (you / system / browser) and note.
+  * The browser agent moves applications to Submitted / Submission Unverified.
+  * Applications from before Stage 5 get a stage derived from their old status at startup.
+* **Tracker rewritten:**
+  * stage filter chips with counts, search (company, role, notes, confirmation ID), 5 sort orders, pagination;
+  * detail drawer: change stage (only allowed next stages), note, confirmation ID, follow-up date, free notes, screenshots, submission evidence, resume used, full history;
+  * "Applied manually" = move to Submitted with a note.
+* **Opportunities:** a "Shortlist" button starts tracking a job, and stage is set to Eligible / Not Eligible from its evaluation.
+* **Duplicate protection:** one application per job. Once sent, the application cannot be regenerated, edited, restored or re-run in the browser.
+* New API: `GET /api/applications` (paginated), `PATCH /api/applications/{id}`, `GET /api/applications/{id}/events`, `POST /api/applications/shortlist/{job_id}`, `GET /api/applications/stages`, `GET /api/applications/drafts/{id}/versions`, `POST .../versions/{n}/restore`.
+
+**Test results (executed 2026-11-25)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–5, 99 tests) | **PASS** 99/99 |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS**. test_phase5 updated: it now fills the screening answers before approving, because placeholders block approval |
+| Browser check | Approvals (flagged claims, answer editor, versions), Tracker (filters, counts) and detail drawer (history, confirmation ID, follow-up) exercised against a running backend |
+
+**Remaining limitations**
+* The grounding checker is rule-based. It catches the common invented claims (skills, numbers, employers, CGPA, certifications) but not every possible exaggeration ("led a team"), so you still read the text.
+* Follow-up dates are stored and sortable, but there are no reminders yet (Stage 7 daily summary).

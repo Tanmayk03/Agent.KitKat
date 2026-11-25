@@ -31,6 +31,18 @@ export default function OpportunitiesPage({ jobs = [], onPrepareApplication, onN
     return true;
   });
 
+  const [shortlisted, setShortlisted] = useState({});
+  const handleShortlist = async (jobId) => {
+    try {
+      const app = await api.shortlistJob(jobId);
+      setShortlisted({ ...shortlisted, [jobId]: app.stage_label });
+    } catch (err) {
+      // 409 = already tracked
+      setShortlisted({ ...shortlisted, [jobId]: err.message.startsWith('Already tracked') ? 'Tracked' : 'Error' });
+      if (!err.message.startsWith('Already tracked')) alert(`Could not shortlist: ${err.message}`);
+    }
+  };
+
   const handlePrepare = async (jobId) => {
     try {
       setPreparingId(jobId);
@@ -159,6 +171,13 @@ export default function OpportunitiesPage({ jobs = [], onPrepareApplication, onN
                 <span className="text-xs text-zinc-500">Internal listing</span>
               )}
 
+              <button
+                onClick={() => handleShortlist(job.id)}
+                disabled={!!shortlisted[job.id] || job.status === 'expired'}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 disabled:opacity-60"
+              >
+                {shortlisted[job.id] ? `✓ ${shortlisted[job.id]}` : 'Shortlist'}
+              </button>
               <button
                 onClick={() => handlePrepare(job.id)}
                 disabled={preparingId === job.id}

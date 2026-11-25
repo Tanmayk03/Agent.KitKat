@@ -174,13 +174,54 @@ export const api = {
   },
 
   // decision: 'approve' | 'reject' (also accepts 'approved' / 'rejected')
-  async decideApproval(approvalId, decision, notes = '') {
+  async decideApproval(approvalId, decision, notes = '', acknowledgeUnverifiedClaims = false) {
     const action = decision.startsWith('approve') ? 'approve' : decision.startsWith('reject') ? 'reject' : decision;
     const res = await fetch(`${BASE_URL}/api/applications/approvals/${approvalId}/decide`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, decision_notes: notes || null }),
+      body: JSON.stringify({ action, decision_notes: notes || null, acknowledge_unverified_claims: acknowledgeUnverifiedClaims }),
     });
+    return handleResponse(res);
+  },
+
+  async getDraftVersions(draftId) {
+    const res = await fetch(`${BASE_URL}/api/applications/drafts/${draftId}/versions`);
+    return handleResponse(res);
+  },
+
+  async restoreDraftVersion(draftId, version) {
+    const res = await fetch(`${BASE_URL}/api/applications/drafts/${draftId}/versions/${version}/restore`, { method: 'POST' });
+    return handleResponse(res);
+  },
+
+  // Tracker: { stage, q, sort, page, page_size } -> { items, total, page, page_size, stage_counts }
+  async getApplications(params = {}) {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+    const res = await fetch(`${BASE_URL}/api/applications?${qs.toString()}`);
+    return handleResponse(res);
+  },
+
+  async getStages() {
+    const res = await fetch(`${BASE_URL}/api/applications/stages`);
+    return handleResponse(res);
+  },
+
+  async shortlistJob(jobId) {
+    const res = await fetch(`${BASE_URL}/api/applications/shortlist/${jobId}`, { method: 'POST' });
+    return handleResponse(res);
+  },
+
+  async updateApplication(appId, patch) {
+    const res = await fetch(`${BASE_URL}/api/applications/${appId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    return handleResponse(res);
+  },
+
+  async getApplicationEvents(appId) {
+    const res = await fetch(`${BASE_URL}/api/applications/${appId}/events`);
     return handleResponse(res);
   },
 

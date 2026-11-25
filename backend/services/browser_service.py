@@ -16,7 +16,8 @@ from backend.database.models import Job, Resume, ApplicationDraft, Application, 
 from backend.agents.browser_agent import browser_agent
 from backend.schemas.browser import BrowserRunResult, EmergencyStopResponse, BrowserStatusResponse
 from backend.services.resume_service import ResumeService
-from backend.services.application_service import FINAL_APPLICATION_STATES
+from backend.services.application_service import already_sent
+from backend.services.lifecycle import set_stage
 
 logger = logging.getLogger("agent_kitkat.browser_service")
 
@@ -66,7 +67,7 @@ class BrowserService:
 
         # 2b. Safety gates
         apps_res = await db.execute(select(Application).where(Application.job_id == job.id))
-        if any(a.status in FINAL_APPLICATION_STATES for a in apps_res.scalars().all()):
+        if any(already_sent(a) for a in apps_res.scalars().all()):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="An application for this job was already submitted. Agent KitKat will not submit it again."
@@ -154,6 +155,9 @@ class BrowserService:
         app_record.browser_logs = result.logs
 
         if result.status in ("submitted", "submission_unverified"):
+            await set_stage(db, app_record, result.status, actor="browser", force=True,
+                            note=("Website showed a confirmation message after submission."
+                                  if result.status == "submitted" else result.intervention_reason))
             app_record.applied_at = datetime.utcnow()
             app_record.submission_result = (
                 "Website showed a confirmation message after submission."

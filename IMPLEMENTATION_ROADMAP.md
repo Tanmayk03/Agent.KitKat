@@ -34,7 +34,7 @@ Ordered by risk first, then value. Every stage ends with: tests run and results 
 * Eligibility over 10 dimensions with evidence snippets; UNKNOWN → "Confirm" action in the UI.
 * Matching: remove arbitrary baselines (no listed skills → factor marked N/A and weights renormalised and shown); project relevance by skill overlap with each project's stack; next-action recommendation.
 
-## Stage 5: Application preparation and tracking
+## Stage 5: Application preparation and tracking ✅
 * `DraftVersion` table; edits create versions; diff view.
 * Grounding checker: every claim in a generated letter must map to a profile or resume fact; flag unsupported sentences.
 * 14-status lifecycle as an enum with allowed transitions; `ApplicationEvent` history; notes, follow-up dates, confirmation ID, evidence paths.
