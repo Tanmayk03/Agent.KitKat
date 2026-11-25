@@ -11,6 +11,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast } from '../components/Feedback';
 import CareerBoardsCard from '../components/CareerBoardsCard';
 
 export default function SettingsPage({
@@ -20,6 +21,7 @@ export default function SettingsPage({
   onSchedulerToggled,
   onEmergencyStop,
 }) {
+  const toast = useToast();
   const [networkInfo, setNetworkInfo] = useState(null);
 
   useEffect(() => {
@@ -47,9 +49,10 @@ export default function SettingsPage({
       });
       onProfileUpdated(updated);
       setSuccess(true);
+      toast.success('Settings saved.');
       setTimeout(() => setSuccess(false), 2500);
     } catch (err) {
-      alert(`Failed to save settings: ${err.message}`);
+      toast.error(`Could not save settings: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -74,7 +77,7 @@ export default function SettingsPage({
       }
       onSchedulerToggled();
     } catch (err) {
-      alert(`Scheduler action failed: ${err.message}`);
+      toast.error(`Schedule change failed: ${err.message}`);
     }
   };
 
@@ -82,8 +85,9 @@ export default function SettingsPage({
     try {
       await startWithPrefs();
       onSchedulerToggled();
+      toast.success('Schedule updated.');
     } catch (err) {
-      alert(`Could not apply schedule: ${err.message}`);
+      toast.error(`Could not apply schedule: ${err.message}`);
     }
   };
 
@@ -109,9 +113,9 @@ export default function SettingsPage({
             <ShieldAlert className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-zinc-100">Global Emergency Stop Kill-Switch</h2>
+            <h2 className="text-sm font-semibold text-zinc-100">Emergency Stop</h2>
             <p className="text-xs text-zinc-400">
-              Immediately aborts and closes any in-progress Playwright browser automation sessions.
+              Closes any automation browser, stops discovery and pauses the schedule. Everything stays stopped, even after a restart, until you press Resume.
             </p>
           </div>
         </div>
@@ -350,40 +354,54 @@ export default function SettingsPage({
         )}
       </div>
 
-      {/* iPhone PWA & Remote Network Access Card */}
       {/* Company career boards you follow (Greenhouse / Lever / Ashby public APIs) */}
       <CareerBoardsCard />
 
       <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-3.5">
         <h2 className="text-sm font-semibold text-zinc-100 flex items-center space-x-2">
           <Smartphone className="w-4 h-4 text-zinc-400" />
-          <span>iPhone PWA & Local Network Remote Access</span>
+          <span>Use it from your iPhone</span>
         </h2>
         <p className="text-xs text-zinc-400">
-          Control Agent KitKat directly from your iPhone without installing third-party apps from the App Store.
+          Your phone connects to this computer over your Wi-Fi. Nothing goes through the internet, and the app stops working on the phone when this computer is off or asleep.
         </p>
 
         {networkInfo ? (
           <div className="space-y-3 pt-1">
             <div className="p-3.5 rounded-lg bg-zinc-950 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div>
-                <span className="text-[10px] text-zinc-500 uppercase font-mono block">iPhone Safari Access URL</span>
+                <span className="text-[10px] text-zinc-500 uppercase font-mono block">Open this in Safari on your iPhone</span>
                 <span className="font-mono text-xs sm:text-sm font-medium text-zinc-200">{networkInfo.mobile_access_url}</span>
               </div>
-              <a
-                href={networkInfo.mobile_access_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 flex items-center space-x-1.5 self-start sm:self-auto"
-              >
-                <span>Open URL</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+              <div className="flex gap-2 self-start sm:self-auto">
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(networkInfo.mobile_access_url);
+                      toast.success('Address copied.');
+                    } catch {
+                      toast.info(`Copy it manually: ${networkInfo.mobile_access_url}`);
+                    }
+                  }}
+                  className="px-3 py-2 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60"
+                >
+                  Copy
+                </button>
+                <a
+                  href={networkInfo.mobile_access_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 flex items-center gap-1.5"
+                >
+                  <span>Open</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </div>
 
             <div className="space-y-1.5 text-xs text-zinc-400">
-              <span className="font-medium text-zinc-300 block">How to Install on iPhone:</span>
-              <ul className="space-y-1 list-disc list-inside text-zinc-400">
+              <span className="font-medium text-zinc-300 block">Add it to your Home Screen:</span>
+              <ul className="space-y-1 text-zinc-400">
                 {networkInfo.setup_instructions?.map((inst, i) => (
                   <li key={i}>{inst}</li>
                 ))}
@@ -391,7 +409,7 @@ export default function SettingsPage({
             </div>
           </div>
         ) : (
-          <div className="text-xs text-zinc-500">Detecting local network IP...</div>
+          <div className="text-xs text-zinc-500">Finding this computer's Wi-Fi address…</div>
         )}
       </div>
 

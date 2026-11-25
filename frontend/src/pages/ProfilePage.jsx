@@ -12,9 +12,11 @@ import {
   FolderGit2,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast } from '../components/Feedback';
 import ProfileHealthCard from '../components/ProfileHealthCard';
 
 export default function ProfilePage({ profile, onProfileUpdated }) {
+  const toast = useToast();
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -87,9 +89,10 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
       onProfileUpdated(updated);
       setHealthKey((k) => k + 1);
       setSuccess(true);
+      toast.success('Profile saved.');
       setTimeout(() => setSuccess(false), 2500);
     } catch (err) {
-      alert(`Failed to update profile: ${err.message}`);
+      toast.error(`Could not save your profile: ${err.message}`);
     } finally {
       setSaving(false);
     }

@@ -447,3 +447,49 @@
 * No push/e-mail notifications; follow-ups are shown in the app only.
 * Reports count stage changes from the application history; changes made before Stage 5 have no history and are not counted per day.
 
+---
+
+## Stage 8: Frontend and mobile (2026-11-26)
+
+**Changed**
+* **Opportunities** (`GET /api/jobs/opportunities`, `backend/services/opportunity_service.py`; page rewritten):
+  * Every stored job is joined in SQL with its **latest** eligibility and match result and its tracker entry.
+  * Default order: eligible, needs checking, not evaluated, not eligible; best score first within each group. Other sorts: highest score, newest found, recently posted.
+  * Filters: search, eligibility chips with counts, remote only, include expired, tracked or not. Pagination is server-side (20 per page).
+  * Each card shows:
+    * the eligibility badge, with the failed or unverified requirements;
+    * the score bar, highlighted at or above your threshold;
+    * matched and missing skills;
+    * the stored next action;
+    * Details (the full evaluation);
+    * actions: Evaluate (if not evaluated), Shortlist or "In tracker", and Prepare. Prepare asks first when the job failed a hard requirement.
+  * Previously the page listed every job from `/api/jobs` with no eligibility or score and filtered it in the browser.
+* **Feedback** (`components/Feedback.jsx`): toasts and a confirm dialog replace all 20 `alert()`/`confirm()` calls. The final Submit confirmation is a red dialog with the review warning. Shared `Loading`, `EmptyState` and `ErrorState` components.
+* Discovery results, Emergency Stop and Resume now report through toasts.
+* **Navigation:** the current tab is kept in the URL (`#/tracker`), so reload, bookmarks and the phone's back button work.
+* **Mobile:**
+  * **The bottom navigation bar rendered at the top of the screen on phones.** It was inside the header, whose `backdrop-filter` makes `position: fixed` relative to the header. It now sits at the bottom, with Home / Jobs / Approvals (with count) / Tracker / More and 52 px touch targets.
+  * Safe-area insets are handled by the header, bottom nav and page padding (no double padding).
+  * Pinch-zoom is allowed again. Inputs are 16 px on phones so iOS doesn't zoom into them.
+* **PWA:**
+  * PNG icons (192, 512, maskable 512) and a 180 px `apple-touch-icon` (iOS ignores SVG icons).
+  * Relative manifest and paths: the same build works from the Vite server (`/`) and from the backend (`/ui/`). Before, `start_url` pointed at the backend's JSON root.
+  * The service worker is network-first for pages (it was cache-first, so an old build could stick), cache-first for hashed assets, and never caches `/api`. It only registers in a secure context.
+  * Fonts are bundled (`@fontsource`); no requests to Google Fonts.
+  * Browsers opening `http://127.0.0.1:8000/` are redirected to `/ui/`; API clients still get JSON.
+* **iPhone HTTPS:** if `frontend/certs/cert.pem` and `key.pem` exist, the Vite server serves https and Settings shows the `https://` address. `docs/IPHONE.md` covers setup, firewall, fixed IP and mkcert. Certificates are git-ignored.
+* Settings: the phone card has a Copy button and accurate steps. The Emergency Stop text now describes the persistent halt.
+* Fixed wording: the resume-delete confirmation now says prepared applications can no longer attach the deleted file (drafts store only the resume ID).
+
+**Test results (executed 2026-11-26)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–8, 149 tests) | **PASS** 149/149; 9 new in `tests/test_stage8_frontend_api.py`. They cover ordering, latest-evaluation wins, facets, filters, pagination and clamping, bad params, PWA files and PNG signatures, the root redirect, and network info |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| Frontend build | **PASS** |
+| Browser check | **Desktop:** Opportunities order, page 2, confirm on an ineligible job, shortlist toast, details, hash kept on reload. **iPhone-size (390×844, touch):** all 9 pages with no horizontal overflow, bottom nav at the screen bottom, More → Reports, back button, 16 px inputs, bundled font loaded. No page errors |
+
+**Remaining limitations**
+* Not yet tried on a real iPhone (Safari, Add to Home Screen, mkcert trust).
+* The LAN path is still the Vite dev server from `start.bat`. A LAN access token and a single production server are Stage 9/10.
+

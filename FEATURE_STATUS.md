@@ -2,7 +2,7 @@
 
 Legend: ✅ Working (demonstrated) · 🟡 Partial · 🧩 UI/placeholder only · ❌ Broken · ⬜ Missing · ⛔ Blocked (could not be verified in the audit environment)
 
-Last updated: 2026-11-26, after Stage 7 (scheduler and reporting). Rows changed in Stages 3–7 are marked (S3)…(S7). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
+Last updated: 2026-11-26, after Stage 8 (frontend and mobile). Rows changed in Stages 3–8 are marked (S3)…(S8). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
 
 | Area | Feature | Before (audit) | After Stage 2 | Evidence / remaining gap |
 |---|---|---|---|---|
@@ -64,8 +64,12 @@ Last updated: 2026-11-26, after Stage 7 (scheduler and reporting). Rows changed 
 | Reports | GET read-only, POST saves snapshot; history; date picker (S7) | ❌ (GET wrote rows) | ✅ | Tests plus browser check |
 | Reports | Follow-ups due (endpoint, Dashboard card, report section) (S7) | ⬜ | ✅ | Tests plus browser check |
 | Frontend | Real data, no mocks | ✅ | ✅ | |
-| Frontend | Opportunities with score and eligibility, pagination, toasts | ⬜ | ⬜ | Stage 8 |
-| PWA | iPhone install over LAN | 🟡 | 🟡 | Service workers need HTTPS on a LAN IP; Stage 8 |
+| Frontend | Opportunities from stored evaluations: eligibility badge and reasons, score, skills, next action, facets, sort, server-side pagination, shortlist/evaluate/prepare (S8) | ⬜ | ✅ | `GET /api/jobs/opportunities`; tests plus browser check (27 seeded jobs) |
+| Frontend | Toasts and confirm dialog instead of `alert()`/`confirm()`; shared loading/empty/error states (S8) | ⬜ | ✅ | No `alert(`/`confirm(` left in `src/`; browser check |
+| Frontend | Tab in URL hash: reload, bookmarks and the phone back button work (S8) | ⬜ | ✅ | Browser check |
+| Mobile | Bottom nav fixed to the screen bottom (was rendering at the top), More menu, 52 px targets, safe areas, no horizontal overflow on any page at 390 px, pinch-zoom allowed (S8) | ❌ | ✅ | Browser check, iPhone-size viewport |
+| PWA | PNG icons (192/512/maskable), 180 px apple-touch-icon, relative manifest that works at `/` and `/ui/`, network-first service worker, bundled fonts (S8) | 🟡 | ✅ | Tests (files served, PNG signatures) plus browser check |
+| PWA | iPhone offline shell over HTTPS (mkcert; `docs/IPHONE.md`) (S8) | 🟡 | ⛔ | Documented and auto-enabled when certs exist; needs a real iPhone to verify |
 | AI | Ollama health and generation | ⛔ | ⛔ | Ollama not available in the audit sandbox |
 
-**Completion estimate:** about 38% at audit → 47% (Stage 2) → 54% (Stage 3) → 61% (Stage 4) → 68% (Stage 5) → 74% (Stage 6) → **about 79% after Stage 7** (scheduler 60→95%, reports 20→90%; live sources and Ollama still unverified). Weighted over 18 feature areas totalling 120 points; see AUDIT_REPORT.md §7.
+**Completion estimate:** about 38% at audit → 47% (Stage 2) → 54% (Stage 3) → 61% (Stage 4) → 68% (Stage 5) → 74% (Stage 6) → 79% (Stage 7) → **about 84% after Stage 8** (frontend 60→90%, mobile/PWA 40→80%; real-iPhone and live-source checks still to do). Weighted over 18 feature areas totalling 120 points; see AUDIT_REPORT.md §7.

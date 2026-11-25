@@ -51,7 +51,7 @@ Ordered by risk first, then value. Every stage ends with: tests run and results 
 * Interval or cron options; run history table; failure log; daily summary generation.
 * Reports computed per day (jobs created that day, evaluations that day, applications by status-change date). GET is read-only; POST generates.
 
-## Stage 8: Frontend and mobile
+## Stage 8: Frontend and mobile ✅
 * Opportunities page from rankings (score, eligibility, reasons, next action); shortlist button; pagination.
 * Toast notifications instead of `alert()`; consistent loading, empty and error states.
 * PWA: network-first HTML, PNG icons, `apple-touch-icon`; documented HTTPS option (`mkcert`) for a real service worker on iPhone.

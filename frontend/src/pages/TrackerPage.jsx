@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Search, X, Eye, ExternalLink, Clock } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast, useConfirm } from '../components/Feedback';
 
 const STAGE_STYLE = {
   discovered: 'text-zinc-400 border-zinc-700',
@@ -61,6 +62,8 @@ function fmtDate(v) {
 }
 
 export default function TrackerPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [stages, setStages] = useState({});
   const [data, setData] = useState({ items: [], total: 0, stage_counts: {} });
   const [stageFilter, setStageFilter] = useState('');
@@ -159,19 +162,22 @@ export default function TrackerPage() {
 
   const runBrowser = async (app, submit) => {
     if (submit) {
-      const ok = window.confirm(
-        `Submit the application to ${app.company} now?\n\nAgent KitKat will fill the form again and click Submit. ` +
-          'Only continue if you reviewed the pre-submit screenshot and every answer is correct.'
-      );
+      const ok = await confirm({
+        title: `Submit the application to ${app.company} now?`,
+        body: 'Agent KitKat will fill the form again and click Submit. Only continue if you reviewed the pre-submit screenshot and every answer is correct.',
+        confirmLabel: 'Submit application',
+        danger: true,
+      });
       if (!ok) return;
     }
     try {
       setRunningDraftId(app.draft_id);
       const result = await api.runBrowserAutomation(app.draft_id, submit, submit);
-      if (result?.intervention_reason) alert(`${result.status}: ${result.intervention_reason}`);
+      if (result?.intervention_reason) toast.info(result.intervention_reason, { title: `Paused: ${result.status}`, duration: 12000 });
+      else if (result?.status) toast.success(`Browser run finished: ${result.status}.`);
       await load();
     } catch (err) {
-      alert(`Browser automation: ${err.message}`);
+      toast.error(`Browser automation: ${err.message}`);
     } finally {
       setRunningDraftId(null);
     }

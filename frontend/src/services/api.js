@@ -126,6 +126,13 @@ export const api = {
     return handleResponse(res);
   },
 
+  async getOpportunities(params = {}) {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') q.set(k, v); });
+    const res = await fetch(`${BASE_URL}/api/jobs/opportunities?${q}`);
+    return handleResponse(res);
+  },
+
   async getJob(id) {
     const res = await fetch(`${BASE_URL}/api/jobs/${id}`);
     return handleResponse(res);
@@ -136,6 +143,11 @@ export const api = {
     const res = await fetch(`${BASE_URL}/api/matching/evaluate/${jobId}`, {
       method: 'POST',
     });
+    return handleResponse(res);
+  },
+
+  async getEvaluation(jobId) {
+    const res = await fetch(`${BASE_URL}/api/matching/evaluation/${jobId}`);
     return handleResponse(res);
   },
 

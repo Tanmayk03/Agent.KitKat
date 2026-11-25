@@ -4,11 +4,12 @@ Endpoints for analyzing pasted job URLs, raw job description text, and uploaded 
 """
 
 from typing import List
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database.db import get_db
 from backend.schemas.job import (
+    OpportunityPage,
     JobAnalyzeUrlRequest,
     JobAnalyzeTextRequest,
     JobAnalysisResponse,
@@ -16,6 +17,7 @@ from backend.schemas.job import (
     ExtractedJobDetails
 )
 from backend.services.job_service import job_service
+from backend.services import opportunity_service
 
 router = APIRouter(prefix="/api/jobs", tags=["Analyze Job (Mode B)"])
 
@@ -114,6 +116,25 @@ async def list_jobs(session: AsyncSession = Depends(get_db)):
         )
         for j in jobs
     ]
+
+
+@router.get("/opportunities", response_model=OpportunityPage, summary="Jobs with eligibility, score and tracking state")
+async def list_opportunities(
+    q: str = Query("", max_length=200),
+    eligibility: str = Query("all", pattern="^(all|PASS|UNKNOWN|FAIL|unevaluated)$"),
+    remote_only: bool = False,
+    include_expired: bool = False,
+    tracked: str = Query("all", pattern="^(all|yes|no)$"),
+    sort: str = Query("best", pattern="^(best|score|newest|posted)$"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    session: AsyncSession = Depends(get_db),
+):
+    """Default order: eligible first, then needs-checking, then not evaluated, then ineligible; best score first."""
+    return await opportunity_service.list_opportunities(
+        session, q=q, eligibility=eligibility, remote_only=remote_only, include_expired=include_expired,
+        tracked=tracked, sort=sort, page=page, page_size=page_size,
+    )
 
 
 @router.get("/{job_id}")

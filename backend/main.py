@@ -10,7 +10,7 @@ from datetime import datetime
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.config import get_settings
@@ -159,6 +159,8 @@ async def get_root_manifest():
     return JSONResponse(status_code=404, content={"detail": "Manifest not found"})
 
 
+# Kept at the site root so browsers that registered the old root-scoped worker fetch this
+# network-first version on their next update check (it deletes the old cache-first cache).
 @app.get("/sw.js", include_in_schema=False)
 async def get_root_sw():
     sw_path = os.path.join(frontend_dist_dir, "sw.js")
@@ -168,8 +170,10 @@ async def get_root_sw():
 
 
 @app.get("/", tags=["General"])
-async def root():
-    """Welcome endpoint providing service identity and documentation links."""
+async def root(request: Request):
+    """Browsers are sent to the app (/ui/); API clients get service identity and links."""
+    if "text/html" in request.headers.get("accept", "") and os.path.exists(frontend_dist_dir):
+        return RedirectResponse(url="/ui/", status_code=307)
     return {
         "app": settings.APP_NAME,
         "full_name": settings.APP_FULL_NAME,

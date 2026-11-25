@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, XCircle, Save, AlertTriangle, History, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast, useConfirm } from '../components/Feedback';
 
 const STATUS_STYLE = {
   PASS: 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40',
@@ -20,6 +21,8 @@ const ANSWER_LABELS = {
  * grounding check flags claims, unless you tick that you checked them yourself.
  */
 export default function ApprovalsPage({ onNavigateTab }) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -82,7 +85,7 @@ export default function ApprovalsPage({ onNavigateTab }) {
   };
 
   const restore = async (version) => {
-    if (!window.confirm(`Restore version ${version}? Your current text is kept as an earlier version.`)) return;
+    if (!(await confirm({ title: `Restore version ${version}?`, body: 'Your current text is kept as an earlier version.', confirmLabel: 'Restore' }))) return;
     try {
       await api.restoreDraftVersion(selected.draft_id, version);
       await load(selected.id);
@@ -105,7 +108,7 @@ export default function ApprovalsPage({ onNavigateTab }) {
         try {
           await api.runBrowserAutomation(selected.draft_id, false);
         } catch (bErr) {
-          alert(`Approved. Could not pre-fill the form automatically: ${bErr.message}. You can retry from the Tracker or apply manually.`);
+          toast.info(`Could not pre-fill the form automatically: ${bErr.message}. Retry from the Tracker or apply manually.`, { title: 'Approved', duration: 10000 });
         }
         onNavigateTab?.('tracker');
       }

@@ -4,6 +4,7 @@ Discovers local LAN IP address and provides connection endpoints
 for remote iPhone PWA access over local Wi-Fi.
 """
 
+import os
 import socket
 import logging
 from typing import List, Dict, Any
@@ -26,6 +27,7 @@ class NetworkInfoResponse(BaseModel):
     backend_port: int = 8000
     mobile_access_url: str
     setup_instructions: List[str]
+    https: bool = False
 
 
 def get_local_ip() -> str:
@@ -66,14 +68,23 @@ def get_network_info() -> NetworkInfoResponse:
     except Exception:
         pass
 
-    mobile_url = f"http://{primary_ip}:5173"
+    # The phone reaches the app through the frontend server started by start.bat (port 5173),
+    # which listens on the LAN and forwards /api to this backend. It serves https when
+    # frontend/certs/cert.pem + key.pem exist (mkcert, see docs/IPHONE.md).
+    certs = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "certs")
+    https = os.path.exists(os.path.join(certs, "cert.pem")) and os.path.exists(os.path.join(certs, "key.pem"))
+    mobile_url = f"{'https' if https else 'http'}://{primary_ip}:5173"
 
     instructions = [
-        f"1. Connect your iPhone to the same local Wi-Fi network as this laptop.",
-        f"2. Open Safari on your iPhone and visit: {mobile_url}",
-        f"3. Tap the 'Share' icon in the Safari toolbar and select 'Add to Home Screen'.",
-        f"4. Launch Agent KitKat directly from your home screen as a standalone PWA application.",
+        "1. Start Agent KitKat with start.bat and keep both windows open (the frontend window is what your phone talks to).",
+        "2. Connect your iPhone to the same Wi-Fi as this computer.",
+        f"3. In Safari on the iPhone, open {mobile_url}",
+        "4. Tap Share, then 'Add to Home Screen'.",
     ]
+    if not https:
+        instructions.append(
+            "Over plain http the app works, but iOS won't keep an offline copy. For that, set up HTTPS with mkcert (docs/IPHONE.md)."
+        )
 
     return NetworkInfoResponse(
         hostname=hostname,
@@ -82,5 +93,6 @@ def get_network_info() -> NetworkInfoResponse:
         frontend_port=5173,
         backend_port=settings.PORT,
         mobile_access_url=mobile_url,
-        setup_instructions=instructions
+        setup_instructions=instructions,
+        https=https,
     )
