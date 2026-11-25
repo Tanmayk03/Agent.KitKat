@@ -166,6 +166,7 @@ export default function App() {
               const p = await api.getProfile();
               setProfile(p);
             }}
+            onProfileUpdated={setProfile}
           />
         )}
 

@@ -9,8 +9,10 @@ import {
   ShieldCheck,
   Plus,
   X,
+  FolderGit2,
 } from 'lucide-react';
 import { api } from '../services/api';
+import ProfileHealthCard from '../components/ProfileHealthCard';
 
 export default function ProfilePage({ profile, onProfileUpdated }) {
   const [formData, setFormData] = useState({
@@ -32,6 +34,9 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
     },
     preferred_roles: [],
     preferred_locations: [],
+    work_mode: 'Any',
+    work_authorized_countries: [],
+    projects: [],
     application_preferences: {
       daily_search_time: '09:00',
       max_applications_per_day: 5,
@@ -51,17 +56,28 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
         full_name: profile.full_name || '',
         email: profile.email || '',
         phone: profile.phone || '',
-        location: profile.location || 'India',
+        location: profile.location || '',
         linkedin_url: profile.linkedin_url || '',
         github_url: profile.github_url || '',
         portfolio_url: profile.portfolio_url || '',
         education: profile.education || {},
         preferred_roles: profile.preferred_roles || [],
         preferred_locations: profile.preferred_locations || [],
+        work_mode: profile.work_mode || 'Any',
+        work_authorized_countries: profile.work_authorized_countries || [],
+        projects: (profile.projects || []).map((p) =>
+          typeof p === 'string'
+            ? { name: p, description: '', tech_stack: [] }
+            : { name: p.name || p.title || '', description: p.description || '', tech_stack: p.tech_stack || [] }
+        ),
         application_preferences: profile.application_preferences || {},
       });
     }
   }, [profile]);
+
+  const [healthKey, setHealthKey] = useState(0);
+  const updateProject = (idx, patch) =>
+    setFormData({ ...formData, projects: formData.projects.map((p, i) => (i === idx ? { ...p, ...patch } : p)) });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -69,6 +85,7 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
       setSaving(true);
       const updated = await api.updateProfile(formData);
       onProfileUpdated(updated);
+      setHealthKey((k) => k + 1);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2500);
     } catch (err) {
@@ -123,9 +140,12 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
           Candidate Profile & Eligibility Baseline
         </h1>
         <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-2xl">
-          Agent KitKat strictly grounds all eligibility checks, cover letters, and form fills in this profile. Zero hallucinations.
+          Eligibility checks, cover letters and form fills use only what is stored here and in your active resume.
+          Anything missing is reported as UNKNOWN, never guessed.
         </p>
       </div>
+
+      <ProfileHealthCard refreshKey={healthKey} />
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Contact Information */}
@@ -217,7 +237,8 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Degree</label>
               <input
                 type="text"
-                value={formData.education.degree || 'B.Tech'}
+                value={formData.education.degree || ''}
+                placeholder="e.g. B.Tech"
                 onChange={(e) =>
                   setFormData({
                     ...formData,
@@ -232,7 +253,8 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Specialization / Major</label>
               <input
                 type="text"
-                value={formData.education.specialization || 'Computer Science and Data Science'}
+                value={formData.education.specialization || ''}
+                placeholder="e.g. Computer Science (Data Science)"
                 onChange={(e) =>
                   setFormData({
                     ...formData,
@@ -247,7 +269,8 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">College / University</label>
               <input
                 type="text"
-                value={formData.education.college || 'SRM University, Delhi NCR'}
+                value={formData.education.college || ''}
+                placeholder="Your university"
                 onChange={(e) =>
                   setFormData({
                     ...formData,
@@ -293,7 +316,7 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Graduation Month & Year</label>
               <input
                 type="text"
-                value={formData.education.graduation || 'May 2027'}
+                value={formData.education.graduation || ''}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
@@ -303,7 +326,108 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
                 className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 focus:outline-none focus:border-zinc-600"
               />
             </div>
+
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Active Backlogs</label>
+              <input
+                type="number"
+                min="0"
+                value={formData.education.active_backlogs ?? ''}
+                placeholder="e.g. 0"
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    education: {
+                      ...formData.education,
+                      active_backlogs: e.target.value === '' ? null : parseInt(e.target.value, 10),
+                    },
+                  })
+                }
+                className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 focus:outline-none focus:border-zinc-600 font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Authorised to work in (comma separated)</label>
+              <input
+                type="text"
+                value={(formData.work_authorized_countries || []).join(', ')}
+                placeholder="e.g. India"
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    work_authorized_countries: e.target.value.split(',').map((x) => x.trim()).filter(Boolean),
+                  })
+                }
+                className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 focus:outline-none focus:border-zinc-600"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Preferred Work Mode</label>
+              <select
+                value={formData.work_mode || 'Any'}
+                onChange={(e) => setFormData({ ...formData, work_mode: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 focus:outline-none focus:border-zinc-600"
+              >
+                {['Any', 'Remote', 'Hybrid', 'Onsite'].map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
           </div>
+        </div>
+
+        {/* Projects (used for the Projects & Experience factor and grounded answers) */}
+        <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-zinc-100 flex items-center space-x-2">
+            <FolderGit2 className="w-4 h-4 text-zinc-400" />
+            <span>Projects</span>
+          </h2>
+          <p className="text-xs text-zinc-400">
+            Only real projects. The tech stack is compared with each job's skills; descriptions are used verbatim in answers.
+          </p>
+          {formData.projects.length === 0 && <p className="text-xs text-zinc-500">No projects yet. Add one, or import them from a resume on the Resumes page.</p>}
+          {formData.projects.map((p, idx) => (
+            <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-start">
+              <input
+                value={p.name}
+                placeholder="Project name"
+                aria-label="Project name"
+                onChange={(e) => updateProject(idx, { name: e.target.value })}
+                className="sm:col-span-3 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-100"
+              />
+              <input
+                value={p.description}
+                placeholder="What you built and how"
+                aria-label="Project description"
+                onChange={(e) => updateProject(idx, { description: e.target.value })}
+                className="sm:col-span-5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-100"
+              />
+              <input
+                value={(p.tech_stack || []).join(', ')}
+                placeholder="Tech stack, comma separated"
+                aria-label="Project tech stack"
+                onChange={(e) => updateProject(idx, { tech_stack: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })}
+                className="sm:col-span-3 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-100"
+              />
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, projects: formData.projects.filter((_, i) => i !== idx) })}
+                className="sm:col-span-1 p-2 rounded-lg text-zinc-500 hover:text-red-300 hover:bg-zinc-800 justify-self-start"
+                title="Remove project"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, projects: [...formData.projects, { name: '', description: '', tech_stack: [] }] })}
+            className="px-3 py-1.5 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 flex items-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add project
+          </button>
         </div>
 
         {/* Verified vs Unverified Skills */}

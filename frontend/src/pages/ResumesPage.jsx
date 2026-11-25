@@ -6,8 +6,10 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { api } from '../services/api';
+import ResumeImportModal from '../components/ResumeImportModal';
 
-export default function ResumesPage({ onResumeChanged }) {
+export default function ResumesPage({ onResumeChanged, onProfileUpdated }) {
+  const [importing, setImporting] = useState(null);
   const [resumes, setResumes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -178,6 +180,16 @@ export default function ResumesPage({ onResumeChanged }) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          setImporting(r);
+                        }}
+                        className="px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 transition-colors"
+                        title="Copy details from this resume into your profile (you review each field)"
+                      >
+                        Import to profile
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleDelete(r.id);
                         }}
                         className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
@@ -238,6 +250,13 @@ export default function ResumesPage({ onResumeChanged }) {
           </div>
         )}
       </div>
+      {importing && (
+        <ResumeImportModal
+          resume={importing}
+          onClose={() => setImporting(null)}
+          onApplied={(profile) => onProfileUpdated?.(profile)}
+        />
+      )}
     </div>
   );
 }

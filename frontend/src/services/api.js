@@ -43,6 +43,25 @@ export const api = {
     return handleResponse(res);
   },
 
+  async getProfileCompleteness() {
+    const res = await fetch(`${BASE_URL}/api/profile/completeness`);
+    return handleResponse(res);
+  },
+
+  async getResumeSuggestions(resumeId) {
+    const res = await fetch(`${BASE_URL}/api/profile/resume-suggestions/${resumeId}`);
+    return handleResponse(res);
+  },
+
+  async applyResumeSuggestions(resumeId, fields) {
+    const res = await fetch(`${BASE_URL}/api/profile/apply-resume-suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resume_id: resumeId, fields }),
+    });
+    return handleResponse(res);
+  },
+
   // Resumes
   async getResumes() {
     const res = await fetch(`${BASE_URL}/api/resumes`);

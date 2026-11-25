@@ -6,7 +6,7 @@ Handles retrieval, default initialization, and updates for user career profile.
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,7 +41,7 @@ DEFAULT_LOCATIONS = ["India", "Remote"]
 SEEDABLE_FIELDS = {
     "full_name", "email", "phone", "location", "linkedin_url", "github_url", "portfolio_url",
     "education", "preferred_roles", "preferred_locations", "expected_stipend", "work_mode",
-    "unverified_skills", "projects", "work_experience", "certifications",
+    "unverified_skills", "projects", "work_experience", "certifications", "work_authorized_countries",
 }
 
 
@@ -92,6 +92,7 @@ class ProfileService:
                 work_experience=seed.get("work_experience", []),
                 certifications=seed.get("certifications", []),
                 application_preferences=dict(DEFAULT_PREFERENCES),
+                work_authorized_countries=seed.get("work_authorized_countries", []),
                 active_resume_id=None
             )
             session.add(profile)
@@ -132,3 +133,101 @@ class ProfileService:
 
 # Singleton instance
 profile_service = ProfileService()
+
+
+# ---------------------------------------------------------------------------------------------
+# Stage 4: profile validation and resume import (with review)
+# ---------------------------------------------------------------------------------------------
+from backend.tools.resume_profile_extractor import extract_profile_facts, extract_cgpa  # noqa: E402
+
+
+def _get_field(profile: UserProfile, field: str) -> Any:
+    if field.startswith("education."):
+        return (profile.education or {}).get(field.split(".", 1)[1])
+    return getattr(profile, field, None)
+
+
+def profile_completeness(profile: UserProfile, active_resume=None) -> Dict[str, Any]:
+    """Warnings about missing or inconsistent ground-truth facts. Severity: error | warning | info."""
+    warnings = []
+    edu = profile.education or {}
+
+    def warn(field, severity, message):
+        warnings.append({"field": field, "severity": severity, "message": message})
+
+    for field, label in (("full_name", "Full name"), ("email", "Email"), ("phone", "Phone")):
+        if not (getattr(profile, field) or "").strip():
+            warn(field, "error", f"{label} is missing: application forms cannot be filled without it.")
+    for key, label, why in (
+        ("degree", "Degree", "degree requirements"),
+        ("graduation_year", "Graduation year", "batch eligibility"),
+        ("cgpa", "CGPA", "CGPA cut-offs"),
+    ):
+        if edu.get(key) in (None, ""):
+            warn(f"education.{key}", "error", f"{label} is missing: {why} will show UNKNOWN.")
+    if edu.get("active_backlogs") is None:
+        warn("education.active_backlogs", "warning", "Active backlogs not provided: 'no backlogs' rules will show UNKNOWN.")
+    if not edu.get("college"):
+        warn("education.college", "warning", "College / university is missing.")
+    if not (profile.work_authorized_countries or []):
+        warn("work_authorized_countries", "warning", "Work authorisation not provided (e.g. India): 'authorised to work in…' rules will show UNKNOWN.")
+    if not (profile.projects or []):
+        warn("projects", "warning", "No projects in your profile: the Projects factor (20%) cannot score anything.")
+    if not active_resume:
+        warn("active_resume_id", "error", "No active resume: skills cannot be verified and nothing can be uploaded to applications.")
+    else:
+        if not (profile.verified_skills or []):
+            warn("verified_skills", "warning", "No verified skills yet: import them from your resume.")
+        found = extract_cgpa(active_resume.raw_text or "")
+        if edu.get("cgpa") not in (None, "") and found and abs(float(edu["cgpa"]) - found["value"]) > 0.005:
+            warn("education.cgpa", "error",
+                 f"Profile CGPA {edu['cgpa']} differs from your active resume ({found['value']}: \"{found['evidence']}\"). Fix whichever is out of date.")
+        year = edu.get("graduation_year")
+        if year and str(year) not in (active_resume.raw_text or ""):
+            warn("education.graduation_year", "info", f"Graduation year {year} does not appear in your active resume text.")
+    errors = sum(1 for w in warnings if w["severity"] == "error")
+    return {"complete": errors == 0, "error_count": errors, "warnings": warnings}
+
+
+def resume_suggestions(profile: UserProfile, resume) -> List[Dict[str, Any]]:
+    sections = None
+    if resume.structured_data:
+        sd = resume.structured_data
+        sections = {k: sd.get(k) or [] for k in ("education", "experience", "projects", "certifications")}
+    out = []
+    for s in extract_profile_facts(resume.raw_text or "", sections):
+        current = _get_field(profile, s["field"])
+        suggested = s["suggested"]
+        if s["field"] == "verified_skills":
+            current_list = list(current or [])
+            new = [x for x in suggested if x not in current_list]
+            s["differs"] = bool(new)
+            s["note"] = f"{len(new)} new: {', '.join(new[:8])}" if new else "Already verified"
+        elif s["field"] == "projects":
+            s["differs"] = not current
+            s["note"] = "Replaces your current project list" if current else None
+        else:
+            s["differs"] = str(current or "").strip().lower() != str(suggested).strip().lower()
+        s["current"] = current
+        out.append(s)
+    return out
+
+
+async def apply_resume_suggestions(session: AsyncSession, profile: UserProfile, resume, fields: List[str]) -> UserProfile:
+    """Apply only the suggestions you ticked (recomputed server-side from the resume itself)."""
+    chosen = {s["field"]: s for s in resume_suggestions(profile, resume) if s["field"] in set(fields)}
+    edu = dict(profile.education or {})
+    for field, s in chosen.items():
+        val = s["suggested"]
+        if field.startswith("education."):
+            edu[field.split(".", 1)[1]] = val
+        elif field == "verified_skills":
+            verified = sorted(set(profile.verified_skills or []) | set(val))
+            profile.verified_skills = verified
+            profile.unverified_skills = [x for x in (profile.unverified_skills or []) if x not in verified]
+        else:
+            setattr(profile, field, val)
+    profile.education = edu
+    await session.commit()
+    await session.refresh(profile)
+    return profile

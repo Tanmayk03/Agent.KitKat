@@ -82,6 +82,7 @@ class UserProfileUpdate(BaseModel):
     certifications: Optional[List[Union[CertificationItem, Dict[str, Any], str]]] = None
     application_preferences: Optional[ApplicationPreferences] = None
     active_resume_id: Optional[str] = None
+    work_authorized_countries: Optional[List[str]] = None
 
 
 class UserProfileResponse(BaseModel):
@@ -105,6 +106,7 @@ class UserProfileResponse(BaseModel):
     certifications: List[Union[CertificationItem, Dict[str, Any], str]] = Field(default_factory=list)
     application_preferences: ApplicationPreferences
     active_resume_id: Optional[str] = None
+    work_authorized_countries: Optional[List[str]] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

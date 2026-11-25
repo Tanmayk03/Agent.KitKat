@@ -80,6 +80,9 @@ class UserProfile(Base):
     # Active Resume pointer
     active_resume_id = Column(String(36), nullable=True)
 
+    # Countries you are authorised to work in without sponsorship, e.g. ["India"]. Empty = not provided.
+    work_authorized_countries = Column(JSON, default=list)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -185,6 +188,7 @@ class EligibilityResult(Base):
     work_mode_details = Column(String(500), default="")
     experience_status = Column(String(20), nullable=True)
     experience_details = Column(String(500), nullable=True)
+    checks_json = Column(JSON, nullable=True)  # full EligibilityResponse (all checks + evidence)
 
     rejection_reasons = Column(JSON, default=list)
     unverified_requirements = Column(JSON, default=list)
@@ -221,6 +225,7 @@ class MatchResult(Base):
 
     recommendation = Column(String(50), nullable=False)
     explanation = Column(Text, default="")
+    details_json = Column(JSON, nullable=True)  # factor explanations, N/A factors, next action
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

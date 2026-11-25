@@ -307,3 +307,27 @@
 * The public free feeds are thin for India internships. Following the career boards of companies you care about is now the main way to get India roles; you choose the companies.
 * Listings from feeds without a closed flag (Remotive, Jobicy, WWR, Arbeitnow) are never auto-expired. There is no evidence for that, so they show "last seen" instead.
 * Daily report numbers other than "shortlisted" are still cumulative (Stage 7).
+
+
+## Stage 4: Profile, resume, eligibility and matching (2026-11-25)
+
+**Changed**
+* **Requirements with evidence** (`backend/agents/requirements.py`): graduation batches, CGPA cut-off (and %-cut-offs flagged for a human), degree, backlogs, experience years and level, work authorisation, no-sponsorship, internship duration, relocation and full-time availability. Each is labelled **explicit** (quoted sentence from the posting), **inferred** (listing field or title) or **missing**. Excluded batches ("2026/2027 students are not eligible") are no longer treated as eligible. This was a real bug the legacy test exposed.
+* **Eligibility across 10 dimensions:** degree, graduation year, CGPA, active backlogs, experience, skills (advisory only), location, work mode, work authorisation, and other hard requirements. Every check shows the requirement, your value, the evidence and its provenance. Missing profile facts are UNKNOWN. Stored in full (`eligibility_results.checks_json`) and returned by `/api/matching/evaluation/{id}`.
+* **Profile:** new *active backlogs*, *authorised to work in* and *preferred work mode* fields, plus a **Projects editor**. A **profile check** panel lists missing facts and **flags your CGPA if it differs from your active resume** (e.g. profile 8.53 vs resume 8.44, quoting the resume line).
+* **Resume → profile import with review:** Resumes → *Import to profile* shows each value found in the resume (name, email, phone, LinkedIn, GitHub, degree, specialisation, college, CGPA, graduation year, skills, projects) next to your current value, with the resume line it came from. Only the rows you tick are applied (recomputed server-side).
+* **Explainable matching:** projects are scored on real overlap between the job's skills and your projects/experience, with no credit just for having projects. Each factor has a written reason. N/A factors are excluded and the rest rescaled. A recommended **next action** is given (Skip / Verify first / Prepare / Below threshold with the main gaps).
+* **Mode B without the language model:** title and company are read from "Role:/Company:" lines or a "Title – Company" header (previously "Unknown Role at Unknown Company", which scored 0 for role relevance).
+* **UI:** new evaluation view on Analyse Job (all checks with evidence and factor bars with explanations). Fixed the old card showing a blank graduation status (wrong field name) and hardcoded "(2027)" / "(B.Tech)" labels. **Removed hardcoded values that the Profile form displayed as if they were yours** ("SRM University, Delhi NCR", "Computer Science and Data Science", "B.Tech", "May 2027"); they are now placeholders.
+
+**Test results (executed 2026-11-25)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–4, 89 tests) | **PASS** 89/89 |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| Browser check (Profile, Import review, Analyse Job) | Screens rendered and exercised against a running backend; CGPA conflict detected from an uploaded PDF resume |
+
+**Remaining limitations**
+* Resume parsing is regex-based. Unusual layouts (two columns, tables, images) may yield fewer suggestions, but never invented ones.
+* The skill dictionary is fixed (about 55 skills); skills outside it are not recognised in postings or resumes.
+* Experience "1 year" is UNKNOWN (you decide whether internships count); 2+ years is FAIL.

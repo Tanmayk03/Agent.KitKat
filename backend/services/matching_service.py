@@ -54,10 +54,12 @@ class MatchingService:
             resume = await ResumeService.get_resume(session, target_resume_id)
 
         # Execute evaluation via MatchingAgent
+        min_score = float((profile.application_preferences or {}).get("min_match_score", 75))
         match_resp: MatchResponse = MatchingAgent.evaluate_job(
             job=job,
             profile=profile,
-            resume=resume
+            resume=resume,
+            min_score=min_score,
         )
 
         # ---------------------------------------------------------
@@ -83,6 +85,7 @@ class MatchingService:
             existing_el.work_mode_details = el.work_mode.details
             existing_el.experience_status = el.experience_level.status if el.experience_level else None
             existing_el.experience_details = el.experience_level.details if el.experience_level else None
+            existing_el.checks_json = el.model_dump(mode="json")
             existing_el.rejection_reasons = el.rejection_reasons
             existing_el.unverified_requirements = el.unverified_requirements
         else:
@@ -103,7 +106,8 @@ class MatchingService:
                 experience_status=el.experience_level.status if el.experience_level else None,
                 experience_details=el.experience_level.details if el.experience_level else None,
                 rejection_reasons=el.rejection_reasons,
-                unverified_requirements=el.unverified_requirements
+                unverified_requirements=el.unverified_requirements,
+                checks_json=el.model_dump(mode="json"),
             )
             session.add(new_el)
 
@@ -129,6 +133,8 @@ class MatchingService:
             existing_mr.relevant_projects = match_resp.relevant_projects
             existing_mr.recommendation = match_resp.recommendation
             existing_mr.explanation = match_resp.explanation
+            existing_mr.details_json = {"factor_explanations": match_resp.factor_explanations,
+                                        "na_factors": match_resp.na_factors, "next_action": match_resp.next_action}
         else:
             new_mr = MatchResult(
                 id=str(uuid.uuid4()),
@@ -144,14 +150,15 @@ class MatchingService:
                 missing_skills=match_resp.missing_skills,
                 relevant_projects=match_resp.relevant_projects,
                 recommendation=match_resp.recommendation,
-                explanation=match_resp.explanation
+                explanation=match_resp.explanation,
+                details_json={"factor_explanations": match_resp.factor_explanations,
+                              "na_factors": match_resp.na_factors, "next_action": match_resp.next_action},
             )
             session.add(new_mr)
 
         # ---------------------------------------------------------
         # Update Job Workflow Status
         # ---------------------------------------------------------
-        min_score = (profile.application_preferences or {}).get("min_match_score", 75)
         if el.overall_status == "FAIL":
             job.status = "rejected"
         elif match_resp.overall_score >= min_score and el.overall_status == "PASS":
@@ -180,7 +187,11 @@ class MatchingService:
             # Auto-compute if missing
             return await MatchingService.evaluate_job(session, job_id)
 
-        eligibility_response = EligibilityResponse(
+        if el.checks_json:
+            eligibility_response = EligibilityResponse(**el.checks_json)
+        else:
+            eligibility_response = None
+        eligibility_response = eligibility_response or EligibilityResponse(
             job_id=el.job_id,
             overall_status=el.overall_status,
             degree=RequirementCheck(status=el.degree_status, details=el.degree_details),
@@ -212,6 +223,9 @@ class MatchingService:
             relevant_projects=mr.relevant_projects or [],
             recommendation=mr.recommendation,
             explanation=mr.explanation,
+            factor_explanations=(mr.details_json or {}).get("factor_explanations", {}),
+            na_factors=(mr.details_json or {}).get("na_factors", []),
+            next_action=(mr.details_json or {}).get("next_action"),
             eligibility=eligibility_response
         )
 

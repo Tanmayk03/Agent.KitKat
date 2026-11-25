@@ -2,7 +2,7 @@
 
 Legend: ✅ Working (demonstrated) · 🟡 Partial · 🧩 UI/placeholder only · ❌ Broken · ⬜ Missing · ⛔ Blocked (could not be verified in the audit environment)
 
-Last updated: 2026-11-25, after Stage 3 (discovery reliability). Stage 3 rows are marked (S3). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
+Last updated: 2026-11-25, after Stage 4 (profile, eligibility, matching). Rows changed in Stages 3/4 are marked (S3)/(S4). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
 
 | Area | Feature | Before (audit) | After Stage 2 | Evidence / remaining gap |
 |---|---|---|---|---|
@@ -16,7 +16,9 @@ Last updated: 2026-11-25, after Stage 3 (discovery reliability). Stage 3 rows ar
 | Security | SSRF on URL analysis | ❌ | ✅ | Private, loopback and link-local hosts blocked (test) |
 | Security | Personal data out of source | ❌ | ✅ (code) / ⚠️ (Git history) | Profile starts empty, or is seeded from a gitignored `profile_seed.json`; history rewrite is your decision |
 | Profile | CRUD | ✅ | ✅ | |
-| Profile | Missing-info warnings, validation | ⬜ | ⬜ | Stage 4 |
+| Profile | Missing-info warnings, CGPA-vs-resume check (S4) | ⬜ | ✅ | `/api/profile/completeness`; tests plus browser check |
+| Profile | Backlogs, work authorisation, work mode, projects editor (S4) | ⬜ | ✅ | Tests |
+| Resumes | Resume → profile import with per-field review and evidence (S4) | ⬜ | ✅ | Tests plus browser check |
 | Resumes | Upload / parse / activate / delete | ✅ | ✅ | |
 | Resumes | Skill extraction accuracy | ❌ (false positives) | 🟡 | Ambiguous patterns removed (test); section-aware extraction is Stage 4 |
 | Discovery | Connectors (Arbeitnow, Jobicy, Remotive, WWR, Simplify, Adzuna) | 🟡 | 🟡 | Parsers unit-tested with fixture payloads. **Simplify verified live** (real listings, posted dates 2026-09 to 11). Arbeitnow, Jobicy, Remotive and WWR are **⛔** (blocked by the sandbox proxy); verify on your machine |
@@ -30,9 +32,10 @@ Last updated: 2026-11-25, after Stage 3 (discovery reliability). Stage 3 rows ar
 | Discovery | Background runs with progress; interrupted runs recorded (S3) | ⬜ | ✅ | Tests plus live run |
 | Discovery | Indexed dedupe key, last_seen_at (S3) | ⬜ | ✅ | Tests; live second run: 3/3 duplicates detected |
 | Analysis | Mode B text / URL / file | 🟡 (text broken in UI) | ✅ | Contract fixed (test) |
-| Analysis | Extraction accuracy (degree, seniority, LLM grounding) | ❌ | 🟡 | "be" ≠ B.E.; title-only seniority; LLM CGPA and batch accepted only if found in the text (tests). Full Pydantic schema with explicit/inferred/missing is Stage 4 |
-| Eligibility | PASS/FAIL/UNKNOWN; unknown never PASS | ❌ | 🟡 | Missing batch or profile data → UNKNOWN (test_phase4 now passes). Experience check persisted. Backlogs and work authorisation are Stage 4 |
-| Matching | 5-factor score, explainable | 🟡 | 🟡 | "No skills listed" no longer gives an invented 30/35 (factor N/A, others rescaled). The 16/20 "has any project" baseline remains (Stage 4) |
+| Analysis | Requirements with explicit / inferred / missing and quoted evidence (S4) | ❌ | ✅ | `agents/requirements.py`; tests (excluded batches, % cut-offs, backlogs, work auth, relocation, duration) |
+| Analysis | Title/company without the language model (S4) | ❌ | ✅ | Test |
+| Eligibility | 10 dimensions, evidence per check, unknown never PASS (S4) | ❌ | ✅ | Tests; persisted in full (`checks_json`) |
+| Matching | 5-factor score, per-factor reasons, N/A rescaling, real project overlap, next action (S4) | 🟡 | ✅ | Tests |
 | Matching | Rankings: hard failures below eligible jobs | ❌ (pure score sort) | ✅ | PASS → UNKNOWN → FAIL, then score (test) |
 | Applications | Draft generation | 🟡 | 🟡 | Ungrounded answers replaced with `NEEDS_YOUR_INPUT` (test); versioning is Stage 5 |
 | Applications | Never overwrite a submitted application | ❌ | ✅ | Test |
@@ -51,4 +54,4 @@ Last updated: 2026-11-25, after Stage 3 (discovery reliability). Stage 3 rows ar
 | PWA | iPhone install over LAN | 🟡 | 🟡 | Service workers need HTTPS on a LAN IP; Stage 8 |
 | AI | Ollama health and generation | ⛔ | ⛔ | Ollama not available in the audit sandbox |
 
-**Completion estimate:** about 38% at audit, about 47% after Stage 2, **about 54% after Stage 3** (discovery 25%→75%) (Stage 2: security +5, browser +3, tests +2, discovery +1.5, approvals +1.5, eligibility +1, scheduler +1.5. Stage 3: discovery +7, tests +1. Weight total 120.)
+**Completion estimate:** about 38% at audit, about 47% after Stage 2, about 54% after Stage 3, **about 61% after Stage 4** (profile 45→85, resume 50→80, analysis 35→70, eligibility 40→85, matching 50→85) (Stage 2: security +5, browser +3, tests +2, discovery +1.5, approvals +1.5, eligibility +1, scheduler +1.5. Stage 3: discovery +7, tests +1. Weight total 120.)

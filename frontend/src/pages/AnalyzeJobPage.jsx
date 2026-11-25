@@ -11,6 +11,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { api } from '../services/api';
+import EvaluationView from '../components/EvaluationView';
 
 export default function AnalyzeJobPage({ onNavigateTab }) {
   const [activeMode, setActiveMode] = useState('url'); // 'url', 'text', 'file'
@@ -257,97 +258,8 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
       {/* Analysis Results View */}
       {analysisResult && (
         <div className="space-y-5">
-          {/* Top Overview Cards: Eligibility & Match Score */}
-          {evalResult && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-              {/* Eligibility Card */}
-              <div
-                className={`rounded-xl border p-4 sm:p-5 ${
-                  evalResult.eligibility?.overall_status === 'PASS'
-                    ? 'bg-zinc-900/60 border-emerald-800/40 text-zinc-200'
-                    : evalResult.eligibility?.overall_status === 'FAIL'
-                    ? 'bg-zinc-900/60 border-red-800/40 text-zinc-200'
-                    : 'bg-zinc-900/60 border-zinc-800 text-zinc-200'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Shield className="w-4 h-4 text-zinc-400" />
-                    <span className="font-semibold text-xs sm:text-sm">Eligibility Verification</span>
-                  </div>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold uppercase ${
-                      evalResult.eligibility?.overall_status === 'PASS'
-                        ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/40'
-                        : 'bg-red-950/40 text-red-400 border border-red-800/40'
-                    }`}
-                  >
-                    {evalResult.eligibility?.overall_status}
-                  </span>
-                </div>
-                <div className="mt-3.5 space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">Graduation Year (2027)</span>
-                    <span className="font-mono font-medium text-zinc-200">{evalResult.eligibility?.graduation_year?.status}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">Degree (B.Tech)</span>
-                    <span className="font-mono font-medium text-zinc-200">{evalResult.eligibility?.degree?.status}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">CGPA</span>
-                    <span className="font-mono font-medium text-zinc-200">{evalResult.eligibility?.cgpa?.status}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">Work Mode</span>
-                    <span className="font-mono font-medium text-zinc-200">{evalResult.eligibility?.work_mode?.status}</span>
-                  </div>
-                </div>
-
-                {evalResult.eligibility?.rejection_reasons?.length > 0 && (
-                  <div className="mt-3 pt-2.5 border-t border-zinc-800 text-xs text-red-300">
-                    <span className="font-medium">Notice: </span>
-                    {evalResult.eligibility.rejection_reasons.join(', ')}
-                  </div>
-                )}
-              </div>
-
-              {/* Match Score Card */}
-              <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 p-4 sm:p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2 text-zinc-200 text-xs sm:text-sm font-semibold">
-                    <CheckCircle2 className="w-4 h-4 text-zinc-400" />
-                    <span>Weighted Resume Match</span>
-                  </div>
-                  <span className="text-2xl font-bold text-zinc-100 font-mono">
-                    {evalResult.overall_score}%
-                  </span>
-                </div>
-
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between text-zinc-400">
-                    <span>Technical Skills (Weight: 35%)</span>
-                    <span className="font-mono text-zinc-200">
-                      {evalResult.category_scores?.technical_skills} / 35
-                    </span>
-                  </div>
-                  <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="bg-zinc-200 h-full rounded-full"
-                      style={{ width: `${(evalResult.category_scores?.technical_skills / 35) * 100}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2 flex items-center justify-between text-xs">
-                  <span className="text-zinc-400">Recommendation</span>
-                  <span className="font-mono font-medium text-zinc-200">
-                    {evalResult.recommendation}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Eligibility (every check with evidence) & explainable match score */}
+          {evalResult && <EvaluationView evaluation={evalResult} />}
 
           {/* Extracted Details Breakdown */}
           {extracted && (
@@ -365,13 +277,13 @@ export default function AnalyzeJobPage({ onNavigateTab }) {
                 <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-lg">
                   <span className="text-zinc-400 block mb-1">Work Mode & Location</span>
                   <span className="font-medium text-zinc-200 text-xs sm:text-sm">
-                    {extracted.work_mode || 'Remote'} ({extracted.work_location || 'India'})
+                    {extracted.work_mode || 'Unknown'} ({extracted.work_location || 'Location not stated'})
                   </span>
                 </div>
                 <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-lg">
                   <span className="text-zinc-400 block mb-1">Stipend / Salary</span>
                   <span className="font-medium text-zinc-200 text-xs sm:text-sm font-mono">
-                    {extracted.salary_or_stipend || 'Competitive'}
+                    {extracted.salary_or_stipend || 'Not stated'}
                   </span>
                 </div>
               </div>

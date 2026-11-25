@@ -79,6 +79,10 @@ async def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS ix_jobs_dedupe_key ON jobs (dedupe_key)",
             "CREATE INDEX IF NOT EXISTS ix_jobs_url_key ON jobs (url_key)",
             "CREATE INDEX IF NOT EXISTS ix_jobs_source_ext ON jobs (source, job_id_external)",
+            # Stage 4
+            "ALTER TABLE eligibility_results ADD COLUMN checks_json JSON",
+            "ALTER TABLE match_results ADD COLUMN details_json JSON",
+            "ALTER TABLE user_profiles ADD COLUMN work_authorized_countries JSON",
         ]
         for stmt in migrations:
             try:

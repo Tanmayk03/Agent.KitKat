@@ -18,6 +18,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from backend.schemas.job import ExtractedJobDetails
 from backend.services.ollama_service import ollama_service
 from backend.tools.resume_parser import ResumeParser
+from backend.agents.requirements import extract_requirements
 
 logger = logging.getLogger("agent_kitkat.job_reader")
 
@@ -106,16 +107,8 @@ class JobReaderAgent:
         )
         features["minimum_cgpa"] = float(cgpa_match.group(1)) if cgpa_match else None
 
-        # 4. Graduation year / batch (years near batch/graduation keywords only)
-        relevant_years = set()
-        for year in set(re.findall(r"\b(202[4-9]|203[0-5])\b", text)):
-            pattern = (
-                rf"(?:batch|graduat|passout|pass-out|passing out|class of|passing|year of passing)\s*(?:of|in)?\s*[^.\n]{{0,30}}{year}"
-                rf"|{year}\s*[^.\n]{{0,20}}(?:batch|graduat|passout|pass-out|passing)"
-            )
-            if re.search(pattern, lower):
-                relevant_years.add(int(year))
-        features["graduation_eligibility"] = sorted(relevant_years)
+        # 4. Graduation year / batch (shared with the eligibility engine; excluded batches are ignored)
+        features["graduation_eligibility"] = extract_requirements(text).graduation_years.value or []
 
         # 5. Degree ("B.E." needs the dots: the plain word "be" is not a degree)
         if re.search(r"\bb\.\s?tech\b|\bbtech\b|\bb\.\s?e\.|\bbachelor'?s?\b|\bundergraduate degree\b", lower):
@@ -125,12 +118,24 @@ class JobReaderAgent:
         else:
             features["required_degree"] = None
 
+        # 6a. Title / company from explicit lines ("Role: X", "Company: X") or a "Title - Company" / "Title at Company" header
+        role_m = re.search(r"^\s*(?:job\s+title|role|position|title)\s*[:\-–]\s*(.{3,100})$", text, re.IGNORECASE | re.MULTILINE)
+        comp_m = re.search(r"^\s*(?:company|organi[sz]ation|employer)\s*(?:name)?\s*[:\-–]\s*(.{2,80})$", text, re.IGNORECASE | re.MULTILINE)
+        features["title"] = role_m.group(1).strip() if role_m else None
+        features["company"] = comp_m.group(1).strip() if comp_m else None
+        first = next((l.strip() for l in text.splitlines() if l.strip()), "")
+        head = re.match(r"^(.{3,80}?)\s+(?:-|–|—|\||@| at )\s+(.{2,60})$", first)
+        if head and any(re.search(p, head.group(1).lower()) for p in EARLY_CAREER_PATTERNS + SENIOR_TITLE_PATTERNS
+                        + [r"\b(engineer|developer|analyst|scientist|designer|sde)\b"]):
+            features["title"] = features["title"] or head.group(1).strip()
+            features["company"] = features["company"] or head.group(2).strip()
+
         # 6. Location from an explicit "Location:" line
         loc_match = re.search(r"^\s*(?:job\s+)?location\s*[:\-–]\s*(.{2,120})$", text, re.IGNORECASE | re.MULTILINE)
         features["location"] = loc_match.group(1).strip() if loc_match else None
 
         # 7. Experience level: seniority from the TITLE only (body text mentions "senior engineers" often)
-        title_text = (title or text.split("\n", 1)[0]).lower()
+        title_text = (title or features.get("title") or text.split("\n", 1)[0]).lower()
         exp_match = re.search(r"(\d+)\s*\+?\s*(?:-\s*\d+\s*)?(?:years?|yrs?)\s*(?:of\s*)?(?:professional\s*|work\s*|relevant\s*)?exp", lower[:3000])
         if any(re.search(pat, title_text) for pat in SENIOR_TITLE_PATTERNS):
             features["experience_required"] = "Senior / Experienced (from title)"
@@ -200,8 +205,8 @@ Job Description:
                 return val.strip()
             return None
 
-        final_company = provided_company or grounded("company_name") or "Unknown Company"
-        final_title = provided_title or grounded("job_title") or "Unknown Role"
+        final_company = provided_company or deterministic.get("company") or grounded("company_name") or "Unknown Company"
+        final_title = provided_title or deterministic.get("title") or grounded("job_title") or "Unknown Role"
 
         # Combine technical skills: union of LLM found and regex confirmed
         llm_skills = parsed_llm_json.get("required_skills", [])

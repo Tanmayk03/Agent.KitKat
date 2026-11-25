@@ -27,7 +27,7 @@ Ordered by risk first, then value. Every stage ends with: tests run and results 
 * Dashboard **Source Health** panel. Run discovery as a background task with polled progress.
 * Tests: fixture payloads per connector, failure/timeout/429, dedupe across sources, expiry. Live smoke test runs separately and is marked BLOCKED when offline.
 
-## Stage 4: Profile, resume, eligibility, matching
+## Stage 4: Profile, resume, eligibility, matching ✅
 * Profile validation and missing-info warnings (CGPA, backlogs, grad year, phone, links); `active_backlogs` field; work-authorisation field.
 * Resume → profile import with review (diff: accept/reject per field); multiple resumes, one active.
 * `JobRequirements` Pydantic schema where each field is `{value, provenance: explicit|inferred|missing, evidence: "quoted text"}`. LLM output validated against it, with values that cannot be found in the text dropped.
