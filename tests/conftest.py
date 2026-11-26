@@ -19,8 +19,10 @@ from backend.services.ollama_service import ollama_service  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def no_ollama(monkeypatch):
-    """Deterministic tests: the local model is 'offline' unless a test patches it."""
+def no_ollama(monkeypatch, request):
+    """Deterministic tests: the local model is 'offline' unless a test patches it (live tests use the real one)."""
+    if request.node.get_closest_marker("live"):
+        return
     async def offline(*args, **kwargs):
         raise HTTPException(status_code=503, detail="Ollama disabled in tests")
     monkeypatch.setattr(ollama_service, "generate_response", offline)

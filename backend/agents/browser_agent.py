@@ -26,6 +26,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
 
 from backend.config import get_settings
+from backend.logging_setup import redact
 from backend.schemas.browser import BrowserRunResult
 from backend.agents.form_mapper import EXTRACT_FIELDS_JS, plan_fields, summarize_plan
 from backend.agents.site_adapters import DETECT_FORM_JS, adapter_for
@@ -80,6 +81,7 @@ class BrowserAutomationAgent:
                     job_title=job_data.get("title") or "Unknown Role", application_url=url)
 
         def log(msg: str):
+            msg = redact(msg)   # never store or print e-mails, phone numbers or tokens
             entry = f"[{datetime.now().strftime('%H:%M:%S')}] {msg}"
             logs.append(entry)
             logger.info("Draft %s: %s", draft_id[:8], msg)
@@ -318,8 +320,8 @@ class BrowserAutomationAgent:
             for phrase in suspicious_phrases:
                 if phrase in content_lower:
                     return True, f"Challenge text detected: '{phrase}'"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("CAPTCHA check could not read the page text (%s); relying on selectors only.", e)
 
         return False, ""
 
@@ -341,8 +343,8 @@ class BrowserAutomationAgent:
                 name_inputs = await page.locator("input[name*='name' i]").count()
                 if name_inputs == 0:
                     return True, "Password input field detected on login page"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Login-page check failed (%s); continuing, you review before anything is sent.", e)
 
         return False, ""
 

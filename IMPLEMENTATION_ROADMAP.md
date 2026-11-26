@@ -56,15 +56,15 @@ Ordered by risk first, then value. Every stage ends with: tests run and results 
 * Toast notifications instead of `alert()`; consistent loading, empty and error states.
 * PWA: network-first HTML, PNG icons, `apple-touch-icon`; documented HTTPS option (`mkcert`) for a real service worker on iPhone.
 
-## Stage 9: Security and reliability
+## Stage 9: Security and reliability ✅
 * Optional LAN access token (generated on first LAN start, shown as a QR code in Settings, sent as a header).
 * Mask PII in browser logs; SQLite WAL; structured log file rotation; backup and restore scripts.
 
-## Stage 10: Integration and release
+## Stage 10: Integration and release ✅ (1.0.0-rc.1)
 * `install.ps1` (venv, pip, npm, Playwright browser, Ollama model check), `start_all.ps1` health wait, `test.ps1`.
 * End-to-end acceptance run against the 20 criteria; README rewritten to match reality.
 
 ## Known blockers
 * **Ollama** and **live job APIs** could not be reached from the audit sandbox; those checks must be run on your Windows machine (`pytest -m live`).
 * **Git history** contains your phone and email; rewriting public history is your decision.
-* **Push access**: this session had read-only access to GitHub, so changes are delivered as a branch bundle and patch.
+* **Windows / iPhone / live sites / Ollama** verification: see ACCEPTANCE.md, "Steps for you on Windows".

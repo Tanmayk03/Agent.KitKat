@@ -467,14 +467,34 @@ async def test_new_profile_without_seed_is_empty(monkeypatch, tmp_path):
 
 
 async def test_no_personal_contact_details_in_tracked_source():
+    """
+    The owner's real phone number and e-mail name must not appear in the code.
+    Only their SHA-256 hashes are stored here, so this test doesn't leak what it looks for.
+    """
+    import hashlib
+    import re
+    banned = {"17b7aace2e2568956df6e20ec837bf0a34799960364ffed1aa4a006aa77beedd",   # phone
+              "a4be4a67dfbc8c32d93f67e70577de3c8ab9ca93d215fb5238ffac5e0a8cb747"}   # e-mail local part
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    needles = ("7905170353", "tanmaykapoor003")
-    for folder in ("backend", "frontend/src", "scripts"):
+    token = re.compile(r"[A-Za-z0-9._+-]{6,}")
+    for folder in ("backend", "frontend/src", "scripts", "tests"):
         for dirpath, _, files in os.walk(os.path.join(root, folder)):
             for name in files:
-                if name.endswith((".py", ".js", ".jsx", ".json")):
+                if name.endswith((".py", ".js", ".jsx", ".json", ".md")):
                     text = open(os.path.join(dirpath, name), encoding="utf-8", errors="ignore").read()
-                    assert not any(n in text for n in needles), os.path.join(dirpath, name)
+                    candidates = set()
+                    for t in token.findall(text):
+                        candidates.add(t.lower())
+                        candidates.update(p.lower() for p in re.split(r"[@._+-]", t) if p)
+                        digits = re.sub(r"\D", "", t)
+                        if len(digits) >= 10:
+                            candidates.add(digits[-10:])
+                    for num in re.findall(r"\+?\d[\d \-().]{8,18}\d", text):     # "+91 79xxx xxxxx" style
+                        digits = re.sub(r"\D", "", num)
+                        if len(digits) >= 10:
+                            candidates.add(digits[-10:])
+                    hit = {c for c in candidates if hashlib.sha256(c.encode()).hexdigest() in banned}
+                    assert not hit, os.path.join(dirpath, name)
 
 
 # --------------------------------------------------------------------------- country-restricted remote

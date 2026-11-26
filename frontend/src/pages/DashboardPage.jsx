@@ -208,8 +208,8 @@ export default function DashboardPage({
           </div>
           <div className="flex items-center justify-between pt-1">
             <span className="text-xs text-zinc-400">Active Policy</span>
-            <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-zinc-800 text-zinc-200 border border-zinc-700/50 uppercase">
-              {prefs.submission_policy || 'manual_approval'}
+            <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-200 border border-zinc-700/50">
+              {(prefs.submission_policy || 'prepare_only') === 'manual_approval' ? 'Approve, then confirm' : 'Prepare only'}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs text-zinc-400">

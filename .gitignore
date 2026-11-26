@@ -39,6 +39,10 @@ storage/screenshots/*
 !storage/screenshots/.gitkeep
 storage/logs/*
 !storage/logs/.gitkeep
+storage/backups/
+# Phone access token (created on first start)
+storage/lan_access.json
+storage/*.tmp
 
 # SQLite
 *.db

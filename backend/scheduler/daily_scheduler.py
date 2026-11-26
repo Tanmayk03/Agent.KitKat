@@ -232,6 +232,13 @@ class DailyScheduler:
                     report = await ReportingService.generate_daily_report(session)
                 self.last_run_status = "success"
                 logger.info("✅ Cycle complete. Report ID: %s", report.id[:8])
+                # Daily automatic backup (keeps the last 7); a failure here never fails the cycle.
+                try:
+                    import asyncio
+                    from backend.maintenance import backup
+                    await asyncio.to_thread(backup.auto_backup_if_due)
+                except Exception as be:
+                    logger.error("Automatic backup after the scheduled run failed: %s", be)
                 return {
                     "status": "success",
                     "discovery": discovery_result.model_dump(),

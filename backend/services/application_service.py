@@ -141,7 +141,7 @@ class ApplicationService:
                                 resume_text=resume.raw_text if resume else "", job=job)
 
         # Every submission needs an explicit per-application approval: "pre_authorized" behaves like manual.
-        policy = policy_override or (profile.application_preferences or {}).get("submission_policy", "manual_approval")
+        policy = policy_override or (profile.application_preferences or {}).get("submission_policy", "prepare_only")
         if policy == "prepare_only":
             draft_status, approval_status, stage = "drafted", None, "draft_ready"
         else:

@@ -27,6 +27,9 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
+        // Adds X-Forwarded-For with the phone's address so the backend knows the request
+        // came from another device and asks for the phone access token.
+        xfwd: true,
       },
     },
   },

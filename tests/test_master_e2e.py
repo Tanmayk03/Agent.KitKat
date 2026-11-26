@@ -135,7 +135,7 @@ async def run_master_e2e():
 
         await client.put("/api/profile", json={
             "full_name": "Harshit Sharma",
-            "email": "harshit.sharma@srm.edu",
+            "email": "test.candidate@example.com",
             "phone": "+91 9876543210",
             "location": "Delhi NCR, India",
             "linkedin_url": "https://linkedin.com/in/harshit-sharma",

@@ -67,7 +67,7 @@ export default function Navbar({
                   Agent KitKat
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-zinc-900 text-zinc-400 border border-zinc-800">
-                  v0.1
+                  {health?.version ? `v${health.version}` : 'v…'}
                 </span>
               </div>
               <p className="text-[11px] text-zinc-400 hidden md:block">Career Assistant</p>

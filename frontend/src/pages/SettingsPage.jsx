@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Clock,
   Layers,
@@ -7,12 +7,12 @@ import {
   Pause,
   Save,
   Check,
-  Smartphone,
-  ExternalLink,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../components/Feedback';
 import CareerBoardsCard from '../components/CareerBoardsCard';
+import PhoneAccessCard from '../components/PhoneAccessCard';
+import BackupsCard from '../components/BackupsCard';
 
 export default function SettingsPage({
   profile,
@@ -22,18 +22,13 @@ export default function SettingsPage({
   onEmergencyStop,
 }) {
   const toast = useToast();
-  const [networkInfo, setNetworkInfo] = useState(null);
-
-  useEffect(() => {
-    api.getNetworkInfo().then(setNetworkInfo).catch(console.warn);
-  }, []);
 
   const [prefs, setPrefs] = useState(
     profile?.application_preferences || {
       daily_search_time: '09:00',
       max_applications_per_day: 5,
       min_match_score: 75,
-      submission_policy: 'manual_approval',
+      submission_policy: 'prepare_only',
     }
   );
 
@@ -144,16 +139,16 @@ export default function SettingsPage({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           {[
             {
-              id: 'manual_approval',
-              title: 'A. Manual Approval',
-              desc: 'Prepares draft & maps fields. Holds application in queue until you explicitly click approve.',
+              id: 'prepare_only',
+              title: 'A. Prepare only',
+              desc: 'Drafts the cover letter and answers, and can fill the form for you to check. Never clicks a submit button: you send the application yourself.',
               badge: 'Default',
             },
             {
-              id: 'prepare_only',
-              title: 'B. Prepare Only',
-              desc: 'Generates tailored cover letters and mapped answers. Never touches website submit buttons.',
-              badge: 'Safe Mode',
+              id: 'manual_approval',
+              title: 'B. Approve, then confirm',
+              desc: 'Drafts wait in Approvals. After you approve one, Agent KitKat fills the form; it submits only when you press Submit and confirm that one application.',
+              badge: 'Two checks',
             },
           ].map((policy) => {
             const isSelected = prefs.submission_policy === policy.id;
@@ -357,61 +352,9 @@ export default function SettingsPage({
       {/* Company career boards you follow (Greenhouse / Lever / Ashby public APIs) */}
       <CareerBoardsCard />
 
-      <div className="rounded-xl bg-zinc-900/40 border border-zinc-800 p-4 sm:p-6 space-y-3.5">
-        <h2 className="text-sm font-semibold text-zinc-100 flex items-center space-x-2">
-          <Smartphone className="w-4 h-4 text-zinc-400" />
-          <span>Use it from your iPhone</span>
-        </h2>
-        <p className="text-xs text-zinc-400">
-          Your phone connects to this computer over your Wi-Fi. Nothing goes through the internet, and the app stops working on the phone when this computer is off or asleep.
-        </p>
+      <PhoneAccessCard />
 
-        {networkInfo ? (
-          <div className="space-y-3 pt-1">
-            <div className="p-3.5 rounded-lg bg-zinc-950 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div>
-                <span className="text-[10px] text-zinc-500 uppercase font-mono block">Open this in Safari on your iPhone</span>
-                <span className="font-mono text-xs sm:text-sm font-medium text-zinc-200">{networkInfo.mobile_access_url}</span>
-              </div>
-              <div className="flex gap-2 self-start sm:self-auto">
-                <button
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(networkInfo.mobile_access_url);
-                      toast.success('Address copied.');
-                    } catch {
-                      toast.info(`Copy it manually: ${networkInfo.mobile_access_url}`);
-                    }
-                  }}
-                  className="px-3 py-2 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60"
-                >
-                  Copy
-                </button>
-                <a
-                  href={networkInfo.mobile_access_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-2 rounded-md text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 flex items-center gap-1.5"
-                >
-                  <span>Open</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-            </div>
-
-            <div className="space-y-1.5 text-xs text-zinc-400">
-              <span className="font-medium text-zinc-300 block">Add it to your Home Screen:</span>
-              <ul className="space-y-1 text-zinc-400">
-                {networkInfo.setup_instructions?.map((inst, i) => (
-                  <li key={i}>{inst}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        ) : (
-          <div className="text-xs text-zinc-500">Finding this computer's Wi-Fi address…</div>
-        )}
-      </div>
+      <BackupsCard />
 
       {/* Save Settings Bar */}
       <div className="flex items-center space-x-3 pt-1">

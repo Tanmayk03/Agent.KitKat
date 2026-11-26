@@ -70,7 +70,7 @@ async def run_phase7_tests():
 
         await client.put("/api/profile", json={
             "full_name": "Harshit Sharma",
-            "email": "harshit.sharma@srm.edu",
+            "email": "test.candidate@example.com",
             "phone": "+91 9876543210",
             "location": "Delhi NCR, India",
             "preferred_roles": ["Software Engineer Intern", "Full Stack Developer Intern", "AI/ML Engineer Intern"],

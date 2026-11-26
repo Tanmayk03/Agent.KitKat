@@ -493,3 +493,106 @@
 * Not yet tried on a real iPhone (Safari, Add to Home Screen, mkcert trust).
 * The LAN path is still the Vite dev server from `start.bat`. A LAN access token and a single production server are Stage 9/10.
 
+---
+
+## Stage 9: Security and reliability (2026-11-26)
+
+**Changed**
+* **Phone access token** (`backend/services/lan_access.py`, `routers/security_router.py`):
+  * On this computer nothing changes. Any other device needs the access token.
+  * A request counts as "another device" if any of these is true: the connection isn't from loopback; `X-Forwarded-For` holds any non-loopback address (the Vite proxy now adds the phone's address via `xfwd`, and a client can't remove it); or the `Host` header isn't a local name. The Host check also blocks DNS-rebinding attacks from websites.
+  * Settings → **Phone access** shows a QR code, generated in the browser, that opens `http://<ip>:5173/#pair=<token>`. The token is exchanged for an **HttpOnly, SameSite=Strict** cookie (Secure over https) and removed from the address bar.
+  * Controls: show/copy the code, **New access code** (unpairs every phone), **Turn off** (refuses all other devices).
+  * Admin endpoints and backups are this-computer-only.
+  * Phones without the token see a pairing screen, and only the app shell loads before pairing.
+  * The token is created on first start in `storage/lan_access.json` (0600, git-ignored) and compared in constant time.
+* **Security headers:**
+  * CSP on the UI (`script-src 'self'`, `frame-ancestors 'none'`, …).
+  * `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`.
+  * `Cache-Control: no-store` on API responses.
+* **Logs** (`backend/logging_setup.py`):
+  * Console output plus `storage/logs/agent_kitkat.log` as JSON lines, rotated at 5 MB with 5 kept. uvicorn's logs go there too.
+  * Every line has e-mails, phone numbers, the access token and `token=`/`Bearer` values masked. Dates, timestamps, IDs and scores are kept.
+  * The browser-automation log stored with each application is masked the same way. Rows written before Stage 6 (`Filled field 'phone' -> +91…`) are scrubbed at startup.
+* **SQLite:** `busy_timeout=5000` and `synchronous=NORMAL` on every connection (WAL already on).
+* **Backups** (`backend/maintenance/backup.py`, `backup.bat`, `restore.bat`, Settings → Backups):
+  * Contents: one zip with a consistent DB copy (SQLite online backup, safe while running), resumes, applications, screenshots, the profile seed, and a manifest with SHA-256 per file and record counts.
+  * Automatic backups run once a day (at startup and after scheduled runs) and the last 7 are kept; manual backups are never pruned.
+  * **Verify** checks paths (no `..` or absolute names), the file list, every checksum, and `PRAGMA integrity_check`.
+  * **Restore** is command-line only. It refuses while the backend is running, asks you to type RESTORE, and saves a `pre-restore` backup first.
+* **Reliability fixes:**
+  * The CAPTCHA and login-page detectors no longer fail silently; errors are logged.
+  * An unknown timezone now logs a warning instead of silently falling back to UTC.
+  * Added `tzdata` to requirements. Windows has no built-in timezone database, so without it `Asia/Kolkata` would not resolve; `tzlocal` usually brings it in, but it's now explicit.
+
+**Test results (executed 2026-11-26)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–9, 180 tests) | **PASS** 180/180; 31 new in `tests/test_stage9_security.py` |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| Frontend build | **PASS** |
+| End-to-end through the real Vite proxy (backend on 127.0.0.1:8000, Vite on 0.0.0.0:5173, iPhone-size browser on the LAN address) | localhost 200 / LAN 401. The QR code decodes (OpenCV) to `http://<ip>:5173/#pair=<token>`. Wrong code is rejected. Scanning pairs and removes the token from the address; reload stays paired; JS can't read the cookie. The phone sees "paired" but never the code. New code → phone must re-pair. Off → phone told it's off. The token appears in no log. No page errors |
+| Backup CLI | Restore refused while the backend was running; after stopping, restored with a pre-restore backup |
+
+**Remaining limitations**
+* Not yet run on Windows or a real iPhone.
+* Addresses outside home-network ranges (e.g. VPN `100.x`) must be added to `CORS_EXTRA_ORIGINS` (documented).
+* Backups are not encrypted. They contain your resumes and profile, so keep them on your own disk.
+
+---
+
+## Stage 10: Integration and release (2026-11-26) → 1.0.0-rc.1
+
+**Changed**
+* **Install / start / test** (Windows):
+  * `install.bat` / `install.ps1`:
+    * checks Python ≥ 3.11 and Node ≥ 20.19 / 22.12;
+    * creates the venv and installs `backend/requirements.lock.txt` (the exact versions tested), falling back to `requirements.txt`;
+    * installs Playwright Chromium, then runs `npm ci` and the frontend build;
+    * creates `.env` from the example (never overwrites);
+    * checks Ollama and offers to pull `qwen2.5:1.5b`;
+    * runs a self-test.
+  * `start.bat` → `start_all.ps1`: refuses to start if the app isn't installed; waits for `/api/health` and the frontend (90 s / 60 s) before opening the browser; prints the phone address. `--reload` is dropped for normal use.
+  * `test.ps1`: pytest, legacy phases and the frontend build; `-Live` adds the live checks. `run_all_tests.ps1` now calls it.
+* **Live checks** (`tests/test_stage10_live.py`, `pytest -m live`, off by default):
+  * Ollama reachable with the model, generates, and a real draft goes through grounding.
+  * Every configured source is reachable and well-formed; the Simplify feed is less than 30 days old.
+  * Optional: one company board (`LIVE_BOARD_URL`) and a read-only preview of a real ATS form (`LIVE_ATS_URL`).
+* **Acceptance** (`tests/test_stage10_acceptance.py`, [ACCEPTANCE.md](ACCEPTANCE.md)):
+  * The full journey with a real PDF resume and real Chromium on a local form:
+    * submit is refused before approval and refused without confirmation;
+    * re-preparing makes a new version of the same draft, not a duplicate;
+    * fill leaves "Gender" for you and keeps no personal data in the log;
+    * the confirmed submit is detected from the site's message;
+    * the tracker, history, daily report and backup all show it;
+    * a sent application can't be regenerated.
+* **Default policy is now Prepare only** for new profiles, as your rules require. Existing profiles keep their saved choice. Settings explains both options in plain words and the Dashboard shows a readable label. The test seed opts into the approval flow explicitly.
+* **Repo hygiene** (`tests/test_stage10_release.py`):
+  * no private files tracked;
+  * no keys or tokens;
+  * only placeholder e-mails;
+  * the scripts never delete data;
+  * the version matches across the backend, `package.json` and the changelog.
+* Fixed my own Stage 2 test: it kept your real phone number and e-mail as plain search strings. It now stores only SHA-256 hashes, and a probe with spaced and dashed numbers confirms it still catches them.
+* Legacy tests used a real university domain (`@srm.edu`); they now use `example.com`.
+* **Removed:**
+  * `scripts/harvest_*.py`: they **deleted every application, draft and approval** from your real database.
+  * `scripts/verify_real_data.py` and the stale `start_all_backup.ps1`.
+  * Added `scripts/run_discovery.py` (backup first, never deletes, respects the halt; verified here: 3 real listings stored) and the read-only `scripts/db_summary.py`.
+* Version **1.0.0-rc.1** in the backend, `package.json`, the navbar and CHANGELOG.md. `.env.example` now defaults to `APP_ENV=production`, `DEBUG=False` (informational only).
+* README rewritten to match what the app actually does.
+
+**Test results (executed 2026-11-26)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–10) | **PASS** 187/187 (11 live checks deselected by default) |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| Frontend build | **PASS** |
+| `pytest -m live` here | Simplify source, feed freshness (newest listing 2026-11-25) and draft flow pass. Ollama is not installed here, and Arbeitnow / Jobicy / Remotive / WWR are refused by the sandbox proxy. **Run on your PC** |
+| `scripts/run_discovery.py` (live) | 3 real listings stored, backup made first, failures reported per source |
+| Built app smoke test | `/` → `/ui/`, navbar `v1.0.0-rc.1`, Settings shows Prepare only as default, no page errors, no ERROR in the log |
+
+**Not verified (needs your PC)**
+* `install.bat` / `start.bat` / `test.ps1`: PowerShell wasn't available here, so they were reviewed by hand for PowerShell 5.1 compatibility.
+* Live sources other than Simplify, Ollama, real ATS forms, and a real iPhone. See ACCEPTANCE.md, "Steps for you on Windows".
+

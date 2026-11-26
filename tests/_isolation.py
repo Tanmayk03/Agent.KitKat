@@ -25,6 +25,8 @@ atexit.register(shutil.rmtree, TEST_ROOT, ignore_errors=True)
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///" + os.path.join(TEST_ROOT, "test.db").replace("\\", "/")
 os.environ["STORAGE_DIR"] = TEST_ROOT
+# httpx test clients use Host: testserver; treat it like localhost (requests still come from 127.0.0.1)
+os.environ["LOCAL_HOSTNAMES"] = "testserver,test"
 for key, sub in {
     "RESUMES_DIR": "resumes",
     "APPLICATIONS_DIR": "applications",
@@ -54,6 +56,8 @@ TEST_PROFILE = {
     "preferred_locations": ["India", "Remote", "Bangalore", "Noida", "Delhi NCR"],
     "expected_stipend": "Market Rate / Negotiable",
     "unverified_skills": ["Python", "React", "Java", "JavaScript", "Node.js", "Web development"],
+    # The suites exercise the approval flow; the real default for a new profile is prepare_only.
+    "application_preferences": {"submission_policy": "manual_approval"},
 }
 _seed_path = os.path.join(TEST_ROOT, "profile_seed.json")
 with open(_seed_path, "w", encoding="utf-8") as f:

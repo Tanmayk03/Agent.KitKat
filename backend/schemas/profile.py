@@ -52,8 +52,9 @@ class ApplicationPreferences(BaseModel):
     max_applications_per_day: int = Field(default=5, ge=1, le=50, description="Max applications prepared/submitted per day")
     min_match_score: int = Field(default=75, ge=0, le=100, description="Minimum match percentage required (0-100)")
     submission_policy: str = Field(
-        default="manual_approval",
-        description="Policy: 'manual_approval', 'pre_authorized', or 'prepare_only'"
+        default="prepare_only",
+        description="Policy: 'prepare_only' (default: drafts only, never submitted) or 'manual_approval' "
+                    "(submits only after your approval and a final per-application confirmation)"
     )
     search_frequency: str = Field(default="once_daily", description="Daily search frequency")
     scheduler_enabled: bool = Field(default=False, description="Whether the daily discovery schedule is on")

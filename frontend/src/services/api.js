@@ -10,6 +10,13 @@ async function handleResponse(response) {
     let errorDetail = `HTTP ${response.status}: ${response.statusText}`;
     try {
       const data = await response.json();
+      // Another device without (or with an outdated) phone access token: show the pairing screen.
+      if (response.status === 401 && data?.code === 'lan_token_required') {
+        window.dispatchEvent(new CustomEvent('kitkat:unpaired'));
+      }
+      if (response.status === 403 && data?.code === 'lan_access_off') {
+        window.dispatchEvent(new CustomEvent('kitkat:lan-off'));
+      }
       if (data && data.detail) {
         errorDetail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
       }
@@ -22,6 +29,57 @@ async function handleResponse(response) {
 }
 
 export const api = {
+  // Backups (this computer only)
+  async listBackups() {
+    const res = await fetch(`${BASE_URL}/api/maintenance/backups`, { cache: 'no-store' });
+    return handleResponse(res);
+  },
+
+  async createBackup() {
+    const res = await fetch(`${BASE_URL}/api/maintenance/backups`, { method: 'POST' });
+    return handleResponse(res);
+  },
+
+  // Phone access (LAN token)
+  async whoami() {
+    const res = await fetch(`${BASE_URL}/api/security/whoami`, { cache: 'no-store' });
+    return handleResponse(res);
+  },
+
+  async pair(token) {
+    const res = await fetch(`${BASE_URL}/api/security/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    return handleResponse(res);
+  },
+
+  async unpair() {
+    const res = await fetch(`${BASE_URL}/api/security/unpair`, { method: 'POST' });
+    return handleResponse(res);
+  },
+
+  async getLanAccess(baseUrl) {
+    const q = baseUrl ? `?base_url=${encodeURIComponent(baseUrl)}` : '';
+    const res = await fetch(`${BASE_URL}/api/security/lan-access${q}`, { cache: 'no-store' });
+    return handleResponse(res);
+  },
+
+  async rotateLanToken() {
+    const res = await fetch(`${BASE_URL}/api/security/lan-access/rotate`, { method: 'POST' });
+    return handleResponse(res);
+  },
+
+  async setLanMode(mode) {
+    const res = await fetch(`${BASE_URL}/api/security/lan-access/mode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
+    return handleResponse(res);
+  },
+
   // System Health
   async getHealth() {
     const res = await fetch(`${BASE_URL}/api/health`);
