@@ -10,10 +10,24 @@ and running Agent KitKat.
    **frontend** window (port 5173), which passes API calls on to the backend. The backend
    itself only listens on this computer (`127.0.0.1`).
 2. Connect the iPhone to the same Wi-Fi as the computer.
-3. On the computer, open **Settings → Use it from your iPhone** and copy the address
-   (for example `http://192.168.1.23:5173`).
-4. Open that address in Safari on the iPhone.
+3. On the computer, open **Settings → Phone access**.
+4. Scan the QR code with the iPhone camera and open the link in Safari. This opens the app
+   **and pairs the phone** in one step. The link carries the access code after `#`, which is
+   never sent to the server's logs and is removed from the address bar straight away.
+   (No camera? Open the phone address shown there and paste the access code.)
 5. Tap **Share → Add to Home Screen**. It opens full-screen like an app.
+
+### Phone access code
+
+Other devices on your Wi-Fi can't use Agent KitKat without the access code; they get a
+"Pair this device" screen. The code is created on first start and stored in
+`storage/lan_access.json` (never in Git). On the phone it's kept in a cookie that page
+scripts can't read.
+
+* **New access code** (Settings → Phone access) unpairs every phone. Use it if a phone is lost.
+* **Turn off** refuses every other device, even paired ones. This computer always works.
+* Everything about phone access (seeing the code, the QR code, new code, on/off, backups) is
+  only available on this computer, never from a phone.
 
 If Safari can't connect:
 
@@ -22,6 +36,10 @@ If Safari can't connect:
 * Make sure your Wi-Fi is set as a **Private** network in Windows, not Public.
 * The address changes if your router gives the computer a new IP. Reserve the IP in your
   router's DHCP settings to keep it fixed.
+* Your network doesn't use the usual home ranges (`192.168.x.x`, `10.x.x.x`,
+  `172.16–31.x.x`), for example a VPN such as Tailscale (`100.x.x.x`)? Pairing then fails with
+  "Cross-site request blocked". Add the phone address to `.env`, for example
+  `CORS_EXTRA_ORIGINS=http://100.101.102.103:5173`, and restart.
 
 ### What doesn't work over plain http
 

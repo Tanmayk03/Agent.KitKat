@@ -41,6 +41,7 @@ def local_tz() -> ZoneInfo:
     try:
         return ZoneInfo(settings.TIMEZONE)
     except Exception:
+        logger.warning("Unknown TIMEZONE %r; using UTC. On Windows run: pip install tzdata", settings.TIMEZONE)
         return ZoneInfo("UTC")
 
 

@@ -56,7 +56,7 @@ Ordered by risk first, then value. Every stage ends with: tests run and results 
 * Toast notifications instead of `alert()`; consistent loading, empty and error states.
 * PWA: network-first HTML, PNG icons, `apple-touch-icon`; documented HTTPS option (`mkcert`) for a real service worker on iPhone.
 
-## Stage 9: Security and reliability
+## Stage 9: Security and reliability ✅
 * Optional LAN access token (generated on first LAN start, shown as a QR code in Settings, sent as a header).
 * Mask PII in browser logs; SQLite WAL; structured log file rotation; backup and restore scripts.
 

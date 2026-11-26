@@ -20,6 +20,18 @@ engine = create_async_engine(
     connect_args={"check_same_thread": False}  # Needed for SQLite
 )
 
+if engine.url.get_backend_name() == "sqlite":
+    from sqlalchemy import event
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _record):
+        # Wait up to 5 s for a lock instead of failing with "database is locked" when the
+        # scheduler and the UI write at the same moment. NORMAL sync is safe with WAL.
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA busy_timeout=5000")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.close()
+
 # Async session factory
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -111,6 +123,35 @@ async def init_db() -> None:
 
     await _backfill_dedupe_keys()
     await _backfill_application_stages()
+    await _scrub_stored_browser_logs()
+
+
+async def _scrub_stored_browser_logs() -> None:
+    """
+    Before Stage 6 the browser log stored typed values ("Filled field 'phone' -> +91...").
+    Mask them in existing rows. Idempotent: rows already clean are left untouched.
+    """
+    import re
+    from sqlalchemy import select
+    from backend.database.models import Application
+    from backend.logging_setup import redact
+
+    old_value = re.compile(r"((?:Filled|Selected|Typed) (?:field )?'[^']*'\s*->).*")
+    async with AsyncSessionLocal() as session:
+        rows = (await session.execute(select(Application).where(Application.browser_logs.isnot(None)))).scalars().all()
+        changed = 0
+        for app in rows:
+            logs = app.browser_logs or []
+            if not isinstance(logs, list):
+                continue
+            clean = [redact(old_value.sub(r"\1 [value hidden]", str(e))) for e in logs]
+            if clean != logs:
+                app.browser_logs = clean
+                changed += 1
+        if changed:
+            await session.commit()
+            import logging
+            logging.getLogger("agent_kitkat.db").info("Masked personal data in %d stored browser log(s).", changed)
 
 
 async def _backfill_application_stages() -> None:

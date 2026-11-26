@@ -493,3 +493,49 @@
 * Not yet tried on a real iPhone (Safari, Add to Home Screen, mkcert trust).
 * The LAN path is still the Vite dev server from `start.bat`. A LAN access token and a single production server are Stage 9/10.
 
+---
+
+## Stage 9: Security and reliability (2026-11-26)
+
+**Changed**
+* **Phone access token** (`backend/services/lan_access.py`, `routers/security_router.py`):
+  * On this computer nothing changes. Any other device needs the access token.
+  * A request counts as "another device" if any of these is true: the connection isn't from loopback; `X-Forwarded-For` holds any non-loopback address (the Vite proxy now adds the phone's address via `xfwd`, and a client can't remove it); or the `Host` header isn't a local name. The Host check also blocks DNS-rebinding attacks from websites.
+  * Settings → **Phone access** shows a QR code, generated in the browser, that opens `http://<ip>:5173/#pair=<token>`. The token is exchanged for an **HttpOnly, SameSite=Strict** cookie (Secure over https) and removed from the address bar.
+  * Controls: show/copy the code, **New access code** (unpairs every phone), **Turn off** (refuses all other devices).
+  * Admin endpoints and backups are this-computer-only.
+  * Phones without the token see a pairing screen, and only the app shell loads before pairing.
+  * The token is created on first start in `storage/lan_access.json` (0600, git-ignored) and compared in constant time.
+* **Security headers:**
+  * CSP on the UI (`script-src 'self'`, `frame-ancestors 'none'`, …).
+  * `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`.
+  * `Cache-Control: no-store` on API responses.
+* **Logs** (`backend/logging_setup.py`):
+  * Console output plus `storage/logs/agent_kitkat.log` as JSON lines, rotated at 5 MB with 5 kept. uvicorn's logs go there too.
+  * Every line has e-mails, phone numbers, the access token and `token=`/`Bearer` values masked. Dates, timestamps, IDs and scores are kept.
+  * The browser-automation log stored with each application is masked the same way. Rows written before Stage 6 (`Filled field 'phone' -> +91…`) are scrubbed at startup.
+* **SQLite:** `busy_timeout=5000` and `synchronous=NORMAL` on every connection (WAL already on).
+* **Backups** (`backend/maintenance/backup.py`, `backup.bat`, `restore.bat`, Settings → Backups):
+  * Contents: one zip with a consistent DB copy (SQLite online backup, safe while running), resumes, applications, screenshots, the profile seed, and a manifest with SHA-256 per file and record counts.
+  * Automatic backups run once a day (at startup and after scheduled runs) and the last 7 are kept; manual backups are never pruned.
+  * **Verify** checks paths (no `..` or absolute names), the file list, every checksum, and `PRAGMA integrity_check`.
+  * **Restore** is command-line only. It refuses while the backend is running, asks you to type RESTORE, and saves a `pre-restore` backup first.
+* **Reliability fixes:**
+  * The CAPTCHA and login-page detectors no longer fail silently; errors are logged.
+  * An unknown timezone now logs a warning instead of silently falling back to UTC.
+  * Added `tzdata` to requirements. Windows has no built-in timezone database, so without it `Asia/Kolkata` would not resolve; `tzlocal` usually brings it in, but it's now explicit.
+
+**Test results (executed 2026-11-26)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–9, 180 tests) | **PASS** 180/180; 31 new in `tests/test_stage9_security.py` |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| Frontend build | **PASS** |
+| End-to-end through the real Vite proxy (backend on 127.0.0.1:8000, Vite on 0.0.0.0:5173, iPhone-size browser on the LAN address) | localhost 200 / LAN 401. The QR code decodes (OpenCV) to `http://<ip>:5173/#pair=<token>`. Wrong code is rejected. Scanning pairs and removes the token from the address; reload stays paired; JS can't read the cookie. The phone sees "paired" but never the code. New code → phone must re-pair. Off → phone told it's off. The token appears in no log. No page errors |
+| Backup CLI | Restore refused while the backend was running; after stopping, restored with a pre-restore backup |
+
+**Remaining limitations**
+* Not yet run on Windows or a real iPhone.
+* Addresses outside home-network ranges (e.g. VPN `100.x`) must be added to `CORS_EXTRA_ORIGINS` (documented).
+* Backups are not encrypted. They contain your resumes and profile, so keep them on your own disk.
+

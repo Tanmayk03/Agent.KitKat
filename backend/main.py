@@ -24,19 +24,19 @@ from backend.routers.browser_router import router as browser_router
 from backend.routers.discovery_router import router as discovery_router, scheduler_router
 from backend.routers.reporting_router import router as reporting_router
 from backend.routers.network_router import router as network_router
+from backend.routers.security_router import router as security_router
+from backend.routers.maintenance_router import router as maintenance_router
 from backend.schemas.health import HealthCheckResponse
 from backend.schemas.ai import AITestRequest, AITestResponse
 from backend.services.ollama_service import ollama_service
 from backend.security import LOCAL_ORIGIN_REGEX, SAFE_METHODS, is_allowed_origin
 
-# Configure structured logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-logger = logging.getLogger("agent_kitkat.main")
-
 settings = get_settings()
+
+# Console + rotating JSON log file (storage/logs/agent_kitkat.log); personal data is masked.
+from backend.logging_setup import setup_logging  # noqa: E402
+LOG_FILE = setup_logging(settings.LOGS_DIR)
+logger = logging.getLogger("agent_kitkat.main")
 
 
 @asynccontextmanager
@@ -79,8 +79,26 @@ async def lifespan(app: FastAPI):
     except Exception as e:  # never block startup on the scheduler
         logger.error("Could not restore scheduler state: %s", e)
 
+    # Phone access token (created on first start) and a daily automatic backup in the background.
+    from backend.services import lan_access
+    lan_access.load()
+    import asyncio
+    from backend.maintenance import backup
+
+    async def _auto_backup():
+        try:
+            m = await asyncio.to_thread(backup.auto_backup_if_due)
+            if m:
+                logger.info("Automatic backup saved: %s", m["name"])
+        except Exception as e:  # never break startup over a backup
+            logger.error("Automatic backup failed: %s", e)
+
+    backup_task = asyncio.create_task(_auto_backup())
+
     yield
 
+    if not backup_task.done():
+        backup_task.cancel()
     daily_scheduler.shutdown()
     logger.info("Shutting down %s...", settings.APP_NAME)
 
@@ -114,6 +132,54 @@ async def automation_halted_handler(request: Request, exc: AutomationHaltedError
     return JSONResponse(status_code=423, content={"detail": str(exc)})
 
 
+from backend.services import lan_access  # noqa: E402
+
+# Paths that hold no personal data and must load before pairing (the app shell + pairing API).
+_OPEN_PATHS = ("/ui", "/assets/", "/manifest.json", "/sw.js", "/favicon.ico")
+_OPEN_API = ("/api/security/whoami", "/api/security/pair")
+
+
+@app.middleware("http")
+async def lan_access_guard(request: Request, call_next):
+    """Requests from other devices need the phone access token (see backend/services/lan_access.py)."""
+    path = request.url.path
+    if path == "/" or path.startswith(_OPEN_PATHS) or path in _OPEN_API:
+        return await call_next(request)
+    if lan_access.is_local_request(request.client.host if request.client else None, request.headers):
+        return await call_next(request)
+    cfg = lan_access.load()
+    if cfg["mode"] == "off":
+        return JSONResponse(status_code=403, content={
+            "detail": "Phone access is turned off. Turn it on in Settings on your computer.",
+            "code": "lan_access_off"})
+    if not lan_access.token_matches(lan_access.presented_token(request.headers, request.cookies)):
+        logger.warning("Refused %s %s from another device without a valid access token", request.method, path)
+        return JSONResponse(status_code=401, content={
+            "detail": "This device is not paired. Scan the QR code in Settings on your computer.",
+            "code": "lan_token_required"})
+    return await call_next(request)
+
+
+_CSP = ("default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; "
+        "font-src 'self' data:; script-src 'self'; connect-src 'self'; manifest-src 'self'; "
+        "worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    h = response.headers
+    h.setdefault("X-Content-Type-Options", "nosniff")
+    h.setdefault("Referrer-Policy", "no-referrer")
+    h.setdefault("X-Frame-Options", "DENY")
+    h.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if request.url.path.startswith("/ui"):
+        h.setdefault("Content-Security-Policy", _CSP)
+    if request.url.path.startswith("/api/"):
+        h.setdefault("Cache-Control", "no-store")
+    return response
+
+
 @app.middleware("http")
 async def reject_cross_site_writes(request: Request, call_next):
     """
@@ -140,6 +206,8 @@ app.include_router(discovery_router)
 app.include_router(scheduler_router)
 app.include_router(reporting_router)
 app.include_router(network_router)
+app.include_router(security_router)
+app.include_router(maintenance_router)
 
 # Mount Frontend Built UI (React PWA) if available
 frontend_dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))

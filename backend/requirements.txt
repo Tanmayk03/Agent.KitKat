@@ -24,6 +24,8 @@ playwright>=1.40.0
 
 # Task Scheduling
 apscheduler>=3.10.0
+# Timezone database: Windows has none built in (needed for TIMEZONE=Asia/Kolkata in reports and the schedule)
+tzdata>=2024.1
 
 # Testing
 pytest>=8.0

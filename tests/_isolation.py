@@ -25,6 +25,8 @@ atexit.register(shutil.rmtree, TEST_ROOT, ignore_errors=True)
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///" + os.path.join(TEST_ROOT, "test.db").replace("\\", "/")
 os.environ["STORAGE_DIR"] = TEST_ROOT
+# httpx test clients use Host: testserver; treat it like localhost (requests still come from 127.0.0.1)
+os.environ["LOCAL_HOSTNAMES"] = "testserver,test"
 for key, sub in {
     "RESUMES_DIR": "resumes",
     "APPLICATIONS_DIR": "applications",
