@@ -49,7 +49,7 @@ Write-Host "[2/3] Backend (http://127.0.0.1:8000)..." -ForegroundColor Cyan
 if (Wait-Url "http://127.0.0.1:8000/api/health" 1) {
     Write-Host "      Already running." -ForegroundColor Green
 } else {
-    Start-Process cmd.exe -ArgumentList "/k", "title Agent KitKat backend && cd /d `"$root`" && `"$venvPy`" -m uvicorn backend.main:app --host 127.0.0.1 --port 8000"
+    Start-Process cmd.exe -ArgumentList "/k", "title Agent KitKat backend && set `"PYTHONUTF8=1`" && cd /d `"$root`" && `"$venvPy`" -m uvicorn backend.main:app --host 127.0.0.1 --port 8000"
     if (Wait-Url "http://127.0.0.1:8000/api/health" 90) { Write-Host "      Backend is up." -ForegroundColor Green }
     else {
         Write-Host "      The backend did not start within 90 s. Check the backend window and storage\logs\agent_kitkat.log" -ForegroundColor Red

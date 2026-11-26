@@ -258,7 +258,9 @@ async def run_master_e2e():
 
         decide_res = await client.post(
             f"/api/applications/approvals/{matching_appr['id']}/decide",
-            json={"action": "approve", "decision_notes": "Approved in master E2E test run"}
+            # Like a person would: you have read any claims the grounding check flagged and accept them.
+            json={"action": "approve", "decision_notes": "Approved in master E2E test run",
+                  "acknowledge_unverified_claims": True}
         )
         assert decide_res.status_code == 200
         print("✅ Human approval recorded successfully.")
@@ -267,7 +269,8 @@ async def run_master_e2e():
         print("\n[Step 9] Playwright Browser Automation & Submission Verification...")
         browser_res = await client.post(
             f"/api/browser/run/{draft_data['id']}",
-            json={"auto_submit": True, "headless": True}
+            # Sending needs approval AND an explicit confirmation for this one application.
+            json={"auto_submit": True, "confirm_submit": True, "headless": True}
         )
         assert browser_res.status_code == 200
         run_data = browser_res.json()
@@ -286,7 +289,7 @@ async def run_master_e2e():
         rep_data = rep_res.json()
         print(f"Total Tracked: {rep_data['total_discovered']} | Submitted: {rep_data['submitted_count']}")
         assert rep_data['submitted_count'] >= 1
-        assert "# 🍫 Agent KitKat - Daily Activity Report" in rep_data['summary_markdown']
+        assert rep_data["summary_markdown"].startswith("# Agent KitKat daily report:")
         print("✅ Audited daily report verified from real database metrics.")
 
         # Step 11: Local Network & iPhone Remote Access

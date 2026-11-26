@@ -158,7 +158,14 @@ async def run_phase7_tests():
         assert second_data["new_saved"] == 0  # Zero duplicate records created!
 
         # Direct unit test of DuplicateChecker
+        # (The old fake "curated" source that provided NexusAI was removed: no fake data.
+        # Store the job ourselves, then check that a differently-written copy is caught.)
         async with AsyncSessionLocal() as session:
+            from backend.database.models import Job as _Job
+            session.add(_Job(id=str(uuid.uuid4()), company="NexusAI Technologies", title="Software Engineer Intern - Python/React",
+                             location="Bangalore, India", url=f"https://example.com/jobs/{uuid.uuid4()}", source="manual_text",
+                             dedupe_key=DuplicateChecker.dedupe_key("NexusAI Technologies", "Software Engineer Intern - Python/React", "Bangalore, India")))
+            await session.commit()
             is_dup, reason = await DuplicateChecker.check_duplicate(
                 db=session,
                 company="NexusAI Technologies Inc.",
@@ -175,10 +182,12 @@ async def run_phase7_tests():
         rep_res = await client.get("/api/reports/daily")
         assert rep_res.status_code == 200
         rep_data = rep_res.json()
-        assert rep_data["total_discovered"] == disc_data["new_saved"]
-        assert rep_data["new_found"] == disc_data["new_saved"]
-        assert rep_data["prepared_count"] == disc_data["prepared_count"]
-        assert "# 🍫 Agent KitKat - Daily Activity Report" in rep_data["summary_markdown"]
+        # Reports count today's activity (Stage 7): listings fetched by both sweeps, jobs stored today
+        # (both sweeps + the one stored in Test 3), and drafts prepared today.
+        assert rep_data["total_discovered"] == disc_data["total_discovered"] + second_data["total_discovered"]
+        assert rep_data["new_found"] == disc_data["new_saved"] + second_data["new_saved"] + 1
+        assert rep_data["prepared_count"] >= disc_data["prepared_count"]
+        assert rep_data["summary_markdown"].startswith("# Agent KitKat daily report:")
         print(f"Report Date: {rep_data['report_date']}")
         print(f"Total Discovered in DB: {rep_data['total_discovered']}")
         print(f"Report ID: {rep_data['id']}")
@@ -191,6 +200,10 @@ async def run_phase7_tests():
         # TEST 5: Reports History and ID Lookup
         # ----------------------------------------------------------------------
         print("\n[Test 5] Testing Reports History & Single Report Lookup...")
+        # GET /api/reports/daily is read-only (Stage 7); saving a snapshot is an explicit POST.
+        saved = await client.post("/api/reports/daily/generate")
+        assert saved.status_code == 200
+        rep_data = saved.json()
         hist_res = await client.get("/api/reports/history")
         assert hist_res.status_code == 200
         history = hist_res.json()

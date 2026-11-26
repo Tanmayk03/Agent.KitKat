@@ -596,3 +596,13 @@
 * `install.bat` / `start.bat` / `test.ps1`: PowerShell wasn't available here, so they were reviewed by hand for PowerShell 5.1 compatibility.
 * Live sources other than Simplify, Ollama, real ATS forms, and a real iPhone. See ACCEPTANCE.md, "Steps for you on Windows".
 
+### Stage 10 follow-up: first run on your Windows PC (2026-11-26)
+* **Your PC:** `install.bat` completed after stopping the old running copy, which had locked `node_modules`. `.\test.ps1 -Live`: **9/9 live checks passed** (Ollama with the real model, grounded draft, all 5 job sources, feed freshness), plus pytest and the frontend build. 2 optional checks were skipped (no `LIVE_BOARD_URL` / `LIVE_ATS_URL`).
+* **All 10 legacy scripts failed in `test.ps1`, for one shared reason:** their output was piped, so Windows Python printed in cp1252 and crashed on the emoji in their messages. Reproduced here (`UnicodeEncodeError '\U0001f680'`). Fixes:
+  * `test.ps1` sets `PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8` and shows the last 25 lines of any failing script (logs in `%TEMP%\kitkat-tests`).
+  * The backend window started by `start.bat` also runs in UTF-8 mode.
+* The scripts that need the internet still had stale expectations from before the audit. Fixed, and re-run here through the proxy with real job data:
+  * `test_phase7`: it expected a duplicate of a company that only existed in the removed fake "curated" source; it now stores that job itself. Report checks now use Stage 7's per-day meanings, and it saves the report with `POST` (GET is read-only). **PASS.**
+  * `test_master_e2e`: approval now acknowledges flagged claims and the submit includes `confirm_submit`, i.e. the two human gates. The report header check is updated. **PASS, all 11 steps** (real Simplify listings, confirmed submit on the local form).
+  * `test_phase1` needs Ollama; nothing stale found, so expected to pass on your PC.
+
