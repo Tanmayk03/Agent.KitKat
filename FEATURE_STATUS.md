@@ -2,14 +2,18 @@
 
 Legend: ✅ Working (demonstrated) · 🟡 Partial · 🧩 UI/placeholder only · ❌ Broken · ⬜ Missing · ⛔ Blocked (could not be verified in the audit environment)
 
-Last updated: 2026-11-26, after Stage 9 (security and reliability). Rows changed in Stages 3–9 are marked (S3)…(S9). The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
+Last updated: 2026-11-26, after Stage 10 (integration and release, 1.0.0-rc.1). Rows changed in Stages 3–10 are marked (S3)…(S10). Acceptance matrix: ACCEPTANCE.md. The "After Stage 2" column shows what changed. Details are in `PROGRESS.md`.
 
 | Area | Feature | Before (audit) | After Stage 2 | Evidence / remaining gap |
 |---|---|---|---|---|
 | Platform | Backend boots, DB tables created | ✅ | ✅ | uvicorn boot plus 7 endpoints returned 200 |
 | Platform | Frontend production build | ✅ | ✅ | `npm run build` OK |
 | Platform | Tests isolated from the real DB | ❌ (tests wipe data) | ✅ | `tests/_isolation.py` sets the temp DB and storage before importing backend; `pytest` refuses the real DB |
-| Platform | One-command install / test | 🟡 | 🟡 | `run_all_tests.ps1` now runs pytest; installer still to do (Stage 10) |
+| Platform | One-command install / start / test (S10) | 🟡 | 🟡 | `install.bat` (tested lock file, Chromium, npm build, .env, Ollama model, self-test), `start.bat` (health waits), `test.ps1 [-Live]`. Reviewed by hand; **not yet run on Windows** |
+| Platform | Live checks: `pytest -m live` (Ollama, every job source, feed freshness, optional board / real ATS preview) (S10) | ⬜ | 🟡 | Simplify passed here; Ollama and the other sources need your PC |
+| Safety | New profiles default to Prepare only (S10) | ❌ (manual_approval) | ✅ | `test_new_profile_defaults_to_prepare_only` |
+| Acceptance | Full journey: resume → job → evaluate → prepare → gates → approve → fill → confirmed submit → tracker / report / backup (S10) | ⬜ | ✅ | `test_full_journey` (real PDF, real Chromium, local form) |
+| Repo | No secrets or placeholder-only e-mails in tracked files; destructive scripts removed (S10) | ❌ | ✅ | `test_stage10_release.py`; Git history unchanged (your decision) |
 | Security | CORS / cross-site requests | ❌ (any origin) | ✅ | Allow-list of localhost and private-LAN origins; cross-site writes get 403 (test) |
 | Security | LAN exposure / auth | ❌ | ✅ | Backend binds 127.0.0.1. Other devices need the phone access token (QR pairing, HttpOnly cookie, rotate, off switch); Host check blocks DNS rebinding (S9). Tests plus an end-to-end run through the real Vite proxy |
 | Security | Security headers: CSP on the UI, nosniff, frame-deny, no-referrer, no-store on the API (S9) | ⬜ | ✅ | Tests |
@@ -77,4 +81,4 @@ Last updated: 2026-11-26, after Stage 9 (security and reliability). Rows changed
 | PWA | iPhone offline shell over HTTPS (mkcert; `docs/IPHONE.md`) (S8) | 🟡 | ⛔ | Documented and auto-enabled when certs exist; needs a real iPhone to verify |
 | AI | Ollama health and generation | ⛔ | ⛔ | Ollama not available in the audit sandbox |
 
-**Completion estimate:** about 38% at audit → 47% (Stage 2) → 54% (Stage 3) → 61% (Stage 4) → 68% (Stage 5) → 74% (Stage 6) → 79% (Stage 7) → 84% (Stage 8) → **about 89% after Stage 9** (security 50→90%, reliability 50→85%; real-iPhone, Windows and live-source checks still to do). Weighted over 18 feature areas totalling 120 points; see AUDIT_REPORT.md §7.
+**Completion estimate:** about 38% at audit → 47% (Stage 2) → 54% (Stage 3) → 61% (Stage 4) → 68% (Stage 5) → 74% (Stage 6) → 79% (Stage 7) → 84% (Stage 8) → 89% (Stage 9) → **about 93% after Stage 10**. The rest is verification only this PC can do: Windows install, live sources and Ollama, a real iPhone, and real ATS forms. Weighted over 18 feature areas totalling 120 points; see AUDIT_REPORT.md §7.

@@ -32,7 +32,7 @@ try {
 # Run FastAPI backend with Uvicorn
 $bindHost = if ($Lan) { "0.0.0.0" } else { "127.0.0.1" }
 Write-Host "[2/2] Launching Agent KitKat FastAPI Backend on ${bindHost}:8000..." -ForegroundColor Cyan
-if ($Lan) { Write-Warning "LAN mode: anyone on this Wi-Fi can reach the API (no login yet). Use only on a trusted network." }
+if ($Lan) { Write-Warning "LAN mode: other devices on this Wi-Fi can reach port 8000 directly; they still need the phone access code (Settings > Phone access)." }
 Write-Host "Endpoints:" -ForegroundColor White
 Write-Host "  - API & Swagger Docs: http://127.0.0.1:8000/docs" -ForegroundColor Gray
 Write-Host "  - Health Check:       http://127.0.0.1:8000/api/health" -ForegroundColor Gray

@@ -135,7 +135,7 @@ async def run_phase2_tests():
         print("\n[Test 2] Testing Profile Update (PUT /api/profile)...")
         update_data = {
             "full_name": "Test Candidate",
-            "email": "candidate@srm.edu",
+            "email": "candidate@example.com",
             "phone": "+91 9876543210",
             "location": "Delhi NCR, India",
             "github_url": "https://github.com/candidate",
@@ -146,7 +146,7 @@ async def run_phase2_tests():
         assert res.status_code == 200, f"Expected 200, got {res.status_code}"
         updated_profile = res.json()
         assert updated_profile["full_name"] == "Test Candidate"
-        assert updated_profile["email"] == "candidate@srm.edu"
+        assert updated_profile["email"] == "candidate@example.com"
         assert updated_profile["github_url"] == "https://github.com/candidate"
         assert updated_profile["work_mode"] == "Hybrid"
         print(f"Updated Name: {updated_profile['full_name']} | Email: {updated_profile['email']}")

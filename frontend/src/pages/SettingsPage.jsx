@@ -28,7 +28,7 @@ export default function SettingsPage({
       daily_search_time: '09:00',
       max_applications_per_day: 5,
       min_match_score: 75,
-      submission_policy: 'manual_approval',
+      submission_policy: 'prepare_only',
     }
   );
 
@@ -139,16 +139,16 @@ export default function SettingsPage({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           {[
             {
-              id: 'manual_approval',
-              title: 'A. Manual Approval',
-              desc: 'Prepares draft & maps fields. Holds application in queue until you explicitly click approve.',
+              id: 'prepare_only',
+              title: 'A. Prepare only',
+              desc: 'Drafts the cover letter and answers, and can fill the form for you to check. Never clicks a submit button: you send the application yourself.',
               badge: 'Default',
             },
             {
-              id: 'prepare_only',
-              title: 'B. Prepare Only',
-              desc: 'Generates tailored cover letters and mapped answers. Never touches website submit buttons.',
-              badge: 'Safe Mode',
+              id: 'manual_approval',
+              title: 'B. Approve, then confirm',
+              desc: 'Drafts wait in Approvals. After you approve one, Agent KitKat fills the form; it submits only when you press Submit and confirm that one application.',
+              badge: 'Two checks',
             },
           ].map((policy) => {
             const isSelected = prefs.submission_policy === policy.id;

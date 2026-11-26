@@ -72,7 +72,7 @@ class UserProfile(Base):
         "daily_search_time": "09:00",
         "max_applications_per_day": 5,
         "min_match_score": 75,
-        "submission_policy": "manual_approval",  # manual_approval or prepare_only (pre_authorized is treated as manual)
+        "submission_policy": "prepare_only",  # prepare_only (default) or manual_approval (pre_authorized is treated as manual)
         "search_frequency": "once_daily",
         "scheduler_enabled": False
     })

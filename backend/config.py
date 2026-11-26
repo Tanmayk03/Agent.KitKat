@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Agent KitKat"
     APP_FULL_NAME: str = "Agent KitKat - Autonomous AI Career Assistant"
     APP_TAGLINE: str = "Your little buddy for finding your next opportunity."
-    APP_VERSION: str = "0.2.0"
+    APP_VERSION: str = "1.0.0-rc.1"
     APP_ENV: str = "development"
     DEBUG: bool = True
 

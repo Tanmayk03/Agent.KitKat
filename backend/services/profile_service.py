@@ -27,7 +27,7 @@ DEFAULT_PREFERENCES = {
     "daily_search_time": "09:00",
     "max_applications_per_day": 5,
     "min_match_score": 75,
-    "submission_policy": "manual_approval",
+    "submission_policy": "prepare_only",   # safest default: drafts only, nothing can be submitted
     "search_frequency": "once_daily",
     "scheduler_enabled": False,
 }
@@ -42,7 +42,22 @@ SEEDABLE_FIELDS = {
     "full_name", "email", "phone", "location", "linkedin_url", "github_url", "portfolio_url",
     "education", "preferred_roles", "preferred_locations", "expected_stipend", "work_mode",
     "unverified_skills", "projects", "work_experience", "certifications", "work_authorized_countries",
+    "application_preferences",
 }
+SUBMISSION_POLICIES = ("prepare_only", "manual_approval")
+
+
+def _seed_prefs(seed: Dict[str, Any]) -> Dict[str, Any]:
+    """Defaults plus any known preference from the seed (unknown keys and policies are ignored)."""
+    prefs = dict(DEFAULT_PREFERENCES)
+    extra = seed.get("application_preferences")
+    if isinstance(extra, dict):
+        for k, v in extra.items():
+            if k in DEFAULT_PREFERENCES or k == "availability":
+                prefs[k] = v
+    if prefs.get("submission_policy") not in SUBMISSION_POLICIES:
+        prefs["submission_policy"] = "prepare_only"
+    return prefs
 
 
 def _load_seed() -> Dict[str, Any]:
@@ -91,7 +106,7 @@ class ProfileService:
                 projects=seed.get("projects", []),
                 work_experience=seed.get("work_experience", []),
                 certifications=seed.get("certifications", []),
-                application_preferences=dict(DEFAULT_PREFERENCES),
+                application_preferences=_seed_prefs(seed),
                 work_authorized_countries=seed.get("work_authorized_countries", []),
                 active_resume_id=None
             )

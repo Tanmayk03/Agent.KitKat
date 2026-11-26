@@ -253,7 +253,7 @@ async def setup_test_db(base_url: str):
                 "first_name": "Harshit",
                 "last_name": "Sharma",
                 "full_name": "Harshit Sharma",
-                "email": "harshit.sharma@srm.edu",
+                "email": "test.candidate@example.com",
                 "phone": "+91 9876543210",
                 "location": "Delhi NCR, India",
                 "linkedin_url": "https://linkedin.com/in/harshit-sharma",
@@ -272,7 +272,7 @@ async def setup_test_db(base_url: str):
             job_id=job_captcha.id,
             resume_id=resume.id,
             cover_letter="Cover letter for Protected Corp",
-            form_field_values={"email": "harshit.sharma@srm.edu"},
+            form_field_values={"email": "test.candidate@example.com"},
             status="approved"
         )
         session.add(draft_captcha)
@@ -282,7 +282,7 @@ async def setup_test_db(base_url: str):
             job_id=job_login.id,
             resume_id=resume.id,
             cover_letter="Cover letter for Enterprise Systems",
-            form_field_values={"email": "harshit.sharma@srm.edu"},
+            form_field_values={"email": "test.candidate@example.com"},
             status="approved"
         )
         session.add(draft_login)
@@ -292,7 +292,7 @@ async def setup_test_db(base_url: str):
             job_id=job_required.id,
             resume_id=resume.id,
             cover_letter="Cover letter for Compliance First",
-            form_field_values={"first_name": "Harshit", "email": "harshit.sharma@srm.edu"},
+            form_field_values={"first_name": "Harshit", "email": "test.candidate@example.com"},
             status="approved"
         )
         session.add(draft_required)
@@ -356,7 +356,7 @@ async def run_phase6_tests():
         # Stage 6: fields are matched by their LABELS; logs name the field, never the value
         assert "Filled 'First Name" in logs_str
         assert "Filled 'Email" in logs_str
-        assert "harshit.sharma@srm.edu" not in logs_str  # personal values are never written to logs
+        assert "test.candidate@example.com" not in logs_str  # personal values are never written to logs
         assert "Uploaded resume to" in logs_str
         assert "Filled 'Cover Letter" in logs_str
         plan = {f["label"].rstrip(":"): f for f in data1["form_plan"]}

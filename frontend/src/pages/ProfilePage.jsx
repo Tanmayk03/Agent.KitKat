@@ -43,7 +43,7 @@ export default function ProfilePage({ profile, onProfileUpdated }) {
       daily_search_time: '09:00',
       max_applications_per_day: 5,
       min_match_score: 75,
-      submission_policy: 'manual_approval',
+      submission_policy: 'prepare_only',
     },
   });
 

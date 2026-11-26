@@ -539,3 +539,60 @@
 * Addresses outside home-network ranges (e.g. VPN `100.x`) must be added to `CORS_EXTRA_ORIGINS` (documented).
 * Backups are not encrypted. They contain your resumes and profile, so keep them on your own disk.
 
+---
+
+## Stage 10: Integration and release (2026-11-26) → 1.0.0-rc.1
+
+**Changed**
+* **Install / start / test** (Windows):
+  * `install.bat` / `install.ps1`:
+    * checks Python ≥ 3.11 and Node ≥ 20.19 / 22.12;
+    * creates the venv and installs `backend/requirements.lock.txt` (the exact versions tested), falling back to `requirements.txt`;
+    * installs Playwright Chromium, then runs `npm ci` and the frontend build;
+    * creates `.env` from the example (never overwrites);
+    * checks Ollama and offers to pull `qwen2.5:1.5b`;
+    * runs a self-test.
+  * `start.bat` → `start_all.ps1`: refuses to start if the app isn't installed; waits for `/api/health` and the frontend (90 s / 60 s) before opening the browser; prints the phone address. `--reload` is dropped for normal use.
+  * `test.ps1`: pytest, legacy phases and the frontend build; `-Live` adds the live checks. `run_all_tests.ps1` now calls it.
+* **Live checks** (`tests/test_stage10_live.py`, `pytest -m live`, off by default):
+  * Ollama reachable with the model, generates, and a real draft goes through grounding.
+  * Every configured source is reachable and well-formed; the Simplify feed is less than 30 days old.
+  * Optional: one company board (`LIVE_BOARD_URL`) and a read-only preview of a real ATS form (`LIVE_ATS_URL`).
+* **Acceptance** (`tests/test_stage10_acceptance.py`, [ACCEPTANCE.md](ACCEPTANCE.md)):
+  * The full journey with a real PDF resume and real Chromium on a local form:
+    * submit is refused before approval and refused without confirmation;
+    * re-preparing makes a new version of the same draft, not a duplicate;
+    * fill leaves "Gender" for you and keeps no personal data in the log;
+    * the confirmed submit is detected from the site's message;
+    * the tracker, history, daily report and backup all show it;
+    * a sent application can't be regenerated.
+* **Default policy is now Prepare only** for new profiles, as your rules require. Existing profiles keep their saved choice. Settings explains both options in plain words and the Dashboard shows a readable label. The test seed opts into the approval flow explicitly.
+* **Repo hygiene** (`tests/test_stage10_release.py`):
+  * no private files tracked;
+  * no keys or tokens;
+  * only placeholder e-mails;
+  * the scripts never delete data;
+  * the version matches across the backend, `package.json` and the changelog.
+* Fixed my own Stage 2 test: it kept your real phone number and e-mail as plain search strings. It now stores only SHA-256 hashes, and a probe with spaced and dashed numbers confirms it still catches them.
+* Legacy tests used a real university domain (`@srm.edu`); they now use `example.com`.
+* **Removed:**
+  * `scripts/harvest_*.py`: they **deleted every application, draft and approval** from your real database.
+  * `scripts/verify_real_data.py` and the stale `start_all_backup.ps1`.
+  * Added `scripts/run_discovery.py` (backup first, never deletes, respects the halt; verified here: 3 real listings stored) and the read-only `scripts/db_summary.py`.
+* Version **1.0.0-rc.1** in the backend, `package.json`, the navbar and CHANGELOG.md. `.env.example` now defaults to `APP_ENV=production`, `DEBUG=False` (informational only).
+* README rewritten to match what the app actually does.
+
+**Test results (executed 2026-11-26)**
+| Suite | Result |
+|---|---|
+| pytest (Stages 2–10) | **PASS** 187/187 (11 live checks deselected by default) |
+| test_phase2, 3, 4, 5, 6, 8, 9 | **PASS** |
+| Frontend build | **PASS** |
+| `pytest -m live` here | Simplify source, feed freshness (newest listing 2026-11-25) and draft flow pass. Ollama is not installed here, and Arbeitnow / Jobicy / Remotive / WWR are refused by the sandbox proxy. **Run on your PC** |
+| `scripts/run_discovery.py` (live) | 3 real listings stored, backup made first, failures reported per source |
+| Built app smoke test | `/` → `/ui/`, navbar `v1.0.0-rc.1`, Settings shows Prepare only as default, no page errors, no ERROR in the log |
+
+**Not verified (needs your PC)**
+* `install.bat` / `start.bat` / `test.ps1`: PowerShell wasn't available here, so they were reviewed by hand for PowerShell 5.1 compatibility.
+* Live sources other than Simplify, Ollama, real ATS forms, and a real iPhone. See ACCEPTANCE.md, "Steps for you on Windows".
+

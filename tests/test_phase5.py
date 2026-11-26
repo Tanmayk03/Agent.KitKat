@@ -72,7 +72,7 @@ async def run_phase5_tests():
         # Update profile with full contact details
         await client.put("/api/profile", json={
             "full_name": "Harshit Sharma",
-            "email": "harshit.sharma@srm.edu",
+            "email": "test.candidate@example.com",
             "phone": "+91 9876543210",
             "location": "Delhi NCR, India",
             "linkedin_url": "https://linkedin.com/in/harshit-sharma",
@@ -127,7 +127,7 @@ async def run_phase5_tests():
 
         assert draft_data["status"] == "pending_approval"
         assert draft_data["form_field_values"]["full_name"] == "Harshit Sharma"
-        assert draft_data["form_field_values"]["email"] == "harshit.sharma@srm.edu"
+        assert draft_data["form_field_values"]["email"] == "test.candidate@example.com"
         assert draft_data["form_field_values"]["degree"] == "B.Tech"
         assert len(draft_data["cover_letter"]) > 100
         assert "why_join" in draft_data["custom_answers"]
